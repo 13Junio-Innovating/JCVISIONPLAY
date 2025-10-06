@@ -1,0 +1,383 @@
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import Layout from "@/components/Layout";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { toast } from "sonner";
+import { Plus, Trash2, PlaySquare, Eye, Clock, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+
+interface MediaFile {
+  id: string;
+  name: string;
+  url: string;
+  type: string;
+  duration: number;
+}
+
+interface PlaylistItem {
+  mediaId: string;
+  duration: number;
+}
+
+interface Playlist {
+  id: string;
+  name: string;
+  items: PlaylistItem[];
+  created_at: string;
+}
+
+const Playlists = () => {
+  const navigate = useNavigate();
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [playlistName, setPlaylistName] = useState("");
+  const [selectedMedia, setSelectedMedia] = useState<PlaylistItem[]>([]);
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const [playlistsData, mediaData] = await Promise.all([
+        supabase
+          .from("playlists")
+          .select("*")
+          .eq("created_by", user.id)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("media")
+          .select("*")
+          .eq("uploaded_by", user.id)
+          .order("created_at", { ascending: false }),
+      ]);
+
+      if (playlistsData.error) throw playlistsData.error;
+      if (mediaData.error) throw mediaData.error;
+
+      const playlists = (playlistsData.data || []).map(p => ({
+        ...p,
+        items: p.items as unknown as PlaylistItem[]
+      }));
+      setPlaylists(playlists);
+      setMediaFiles(mediaData.data || []);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+      toast.error("Erro ao carregar dados");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAddMedia = (media: MediaFile) => {
+    if (selectedMedia.some((item) => item.mediaId === media.id)) {
+      toast.error("Mídia já adicionada");
+      return;
+    }
+    setSelectedMedia([...selectedMedia, { mediaId: media.id, duration: media.duration }]);
+  };
+
+  const handleRemoveMedia = (mediaId: string) => {
+    setSelectedMedia(selectedMedia.filter((item) => item.mediaId !== mediaId));
+  };
+
+  const handleUpdateDuration = (mediaId: string, duration: number) => {
+    setSelectedMedia(
+      selectedMedia.map((item) =>
+        item.mediaId === mediaId ? { ...item, duration } : item
+      )
+    );
+  };
+
+  const handleCreatePlaylist = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (selectedMedia.length === 0) {
+      toast.error("Adicione pelo menos uma mídia");
+      return;
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
+      const { error } = await supabase.from("playlists").insert({
+        name: playlistName,
+        items: selectedMedia as any,
+        created_by: user.id,
+      });
+
+      if (error) throw error;
+
+      toast.success("Playlist criada com sucesso!");
+      setDialogOpen(false);
+      setPlaylistName("");
+      setSelectedMedia([]);
+      fetchData();
+    } catch (error: any) {
+      console.error("Error creating playlist:", error);
+      toast.error(error.message || "Erro ao criar playlist");
+    }
+  };
+
+  const handleDeletePlaylist = async (id: string) => {
+    if (!confirm("Deseja realmente excluir esta playlist?")) return;
+
+    try {
+      await supabase.from("playlists").delete().eq("id", id);
+      toast.success("Playlist excluída com sucesso!");
+      fetchData();
+    } catch (error) {
+      console.error("Error deleting playlist:", error);
+      toast.error("Erro ao excluir playlist");
+    }
+  };
+
+  const getMediaById = (id: string) => mediaFiles.find((m) => m.id === id);
+
+  const getTotalDuration = (items: PlaylistItem[]) => {
+    return items.reduce((total, item) => total + item.duration, 0);
+  };
+
+  return (
+    <Layout>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+              Playlists
+            </h1>
+            <p className="text-muted-foreground">
+              Crie sequências de conteúdo para suas telas
+            </p>
+          </div>
+
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-gradient-to-r from-primary to-accent hover:opacity-90">
+                <Plus className="mr-2 h-4 w-4" />
+                Nova Playlist
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="bg-card/95 backdrop-blur-xl border-border/50 max-w-3xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Criar Playlist</DialogTitle>
+                <DialogDescription>
+                  Adicione mídias e configure a duração de cada uma
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleCreatePlaylist} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="playlist-name">Nome da Playlist</Label>
+                  <Input
+                    id="playlist-name"
+                    value={playlistName}
+                    onChange={(e) => setPlaylistName(e.target.value)}
+                    placeholder="Ex: Playlist Manhã"
+                    required
+                    className="bg-secondary/50"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Mídias Selecionadas ({selectedMedia.length})</Label>
+                  {selectedMedia.length === 0 ? (
+                    <div className="p-4 border border-dashed border-border rounded-lg text-center text-muted-foreground">
+                      Nenhuma mídia selecionada
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {selectedMedia.map((item) => {
+                        const media = getMediaById(item.mediaId);
+                        if (!media) return null;
+                        return (
+                          <div
+                            key={item.mediaId}
+                            className="flex items-center gap-2 p-2 bg-secondary/50 rounded-lg"
+                          >
+                            <div className="w-16 h-16 bg-secondary rounded overflow-hidden shrink-0">
+                              {media.type === "image" ? (
+                                <img
+                                  src={media.url}
+                                  alt={media.name}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <video
+                                  src={media.url}
+                                  className="w-full h-full object-cover"
+                                  muted
+                                />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium truncate">{media.name}</p>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <Input
+                                type="number"
+                                value={item.duration}
+                                onChange={(e) =>
+                                  handleUpdateDuration(
+                                    item.mediaId,
+                                    parseInt(e.target.value) || 0
+                                  )
+                                }
+                                min={1}
+                                className="w-20 bg-background"
+                              />
+                              <span className="text-sm text-muted-foreground">s</span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleRemoveMedia(item.mediaId)}
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Adicionar Mídias</Label>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-60 overflow-y-auto p-2 border border-border rounded-lg bg-secondary/20">
+                    {mediaFiles.length === 0 ? (
+                      <div className="col-span-full text-center py-4 text-muted-foreground">
+                        Nenhuma mídia disponível
+                      </div>
+                    ) : (
+                      mediaFiles.map((media) => (
+                        <button
+                          key={media.id}
+                          type="button"
+                          onClick={() => handleAddMedia(media)}
+                          className="aspect-video relative rounded-lg overflow-hidden border-2 border-transparent hover:border-primary transition-all"
+                          disabled={selectedMedia.some((item) => item.mediaId === media.id)}
+                        >
+                          {media.type === "image" ? (
+                            <img
+                              src={media.url}
+                              alt={media.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <video
+                              src={media.url}
+                              className="w-full h-full object-cover"
+                              muted
+                            />
+                          )}
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                            <Plus className="w-6 h-6 text-white" />
+                          </div>
+                          {selectedMedia.some((item) => item.mediaId === media.id) && (
+                            <div className="absolute inset-0 bg-primary/20 border-2 border-primary" />
+                          )}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <Button
+                  type="submit"
+                  className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90"
+                  disabled={selectedMedia.length === 0}
+                >
+                  Criar Playlist
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        {loading ? (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {[...Array(6)].map((_, i) => (
+              <Card key={i} className="border-border/50 bg-card/50 backdrop-blur-xl">
+                <CardContent className="p-6">
+                  <div className="h-6 bg-secondary/50 animate-pulse rounded mb-4" />
+                  <div className="h-4 bg-secondary/50 animate-pulse rounded" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : playlists.length === 0 ? (
+          <Card className="border-border/50 bg-card/50 backdrop-blur-xl">
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <PlaySquare className="h-16 w-16 text-muted-foreground mb-4" />
+              <p className="text-lg font-semibold mb-2">Nenhuma playlist encontrada</p>
+              <p className="text-muted-foreground text-center mb-4">
+                Crie sua primeira playlist para organizar o conteúdo das telas
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {playlists.map((playlist) => (
+              <Card
+                key={playlist.id}
+                className="border-border/50 bg-card/50 backdrop-blur-xl hover:shadow-glow transition-all"
+              >
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between gap-2 mb-4">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-lg truncate">{playlist.name}</h3>
+                      <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <PlaySquare className="h-3 w-3" />
+                          {playlist.items.length} mídias
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {getTotalDuration(playlist.items)}s
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 border-border/50"
+                      onClick={() => navigate(`/preview/${playlist.id}`)}
+                    >
+                      <Eye className="mr-2 h-4 w-4" />
+                      Preview
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeletePlaylist(playlist.id)}
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+    </Layout>
+  );
+};
+
+export default Playlists;
