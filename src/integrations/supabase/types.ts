@@ -138,7 +138,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_assigned_playlist_by_player_key: {
+        Args: { p_player_key: string }
+        Returns: string
+      }
+      update_screen_last_seen: {
+        Args: { p_player_key: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
