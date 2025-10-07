@@ -228,11 +228,11 @@ const Screens = () => {
                       <div className="flex items-center gap-2 mb-2">
                         <h3 className="font-semibold text-lg truncate">{screen.name}</h3>
                         <Badge
-                          variant={isOnline(screen.last_seen) ? "default" : "secondary"}
+                          variant="outline"
                           className={
                             isOnline(screen.last_seen)
-                              ? "bg-success text-white"
-                              : "bg-secondary"
+                              ? "bg-green-500/20 text-green-400 border-green-500/30"
+                              : "bg-red-500/20 text-red-400 border-red-500/30"
                           }
                         >
                           <Circle

@@ -162,13 +162,13 @@ const Player = () => {
           key={currentMedia.id}
           src={currentMedia.url}
           alt={currentMedia.name}
-          className="w-full h-full object-contain animate-in fade-in duration-1000"
+          className="w-full h-full object-cover animate-in fade-in duration-1000"
         />
       ) : (
         <video
           key={currentMedia.id}
           src={currentMedia.url}
-          className="w-full h-full object-contain"
+          className="w-full h-full object-cover"
           autoPlay
           muted
           loop

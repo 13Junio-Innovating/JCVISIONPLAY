@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Upload, Trash2, Image as ImageIcon, Video, Clock } from "lucide-react";
+import { Upload, Trash2, Image as ImageIcon, Video, Clock, RotateCw } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 
 interface MediaFile {
@@ -16,6 +17,7 @@ interface MediaFile {
   url: string;
   type: string;
   duration: number;
+  rotation: number;
   created_at: string;
 }
 
@@ -60,6 +62,7 @@ const Media = () => {
     const file = formData.get("file") as File;
     const name = formData.get("name") as string;
     const duration = parseInt(formData.get("duration") as string) || 10;
+    const rotation = parseInt(formData.get("rotation") as string) || 0;
 
     if (!file) {
       toast.error("Selecione um arquivo");
@@ -98,6 +101,7 @@ const Media = () => {
         url: publicUrl,
         type: fileType,
         duration,
+        rotation,
         uploaded_by: user.id,
       });
 
@@ -195,6 +199,20 @@ const Media = () => {
                     className="bg-secondary/50"
                   />
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="rotation">Rotação da tela</Label>
+                  <Select name="rotation" defaultValue="0">
+                    <SelectTrigger className="bg-secondary/50">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">Normal (0°)</SelectItem>
+                      <SelectItem value="90">90° (Horário)</SelectItem>
+                      <SelectItem value="180">180° (Invertido)</SelectItem>
+                      <SelectItem value="270">270° (Anti-horário)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 {uploading && (
                   <div className="space-y-2">
                     <Progress value={uploadProgress} />
@@ -249,11 +267,13 @@ const Media = () => {
                       src={media.url}
                       alt={media.name}
                       className="w-full h-full object-cover"
+                      style={{ transform: `rotate(${media.rotation}deg)` }}
                     />
                   ) : (
                     <video
                       src={media.url}
                       className="w-full h-full object-cover"
+                      style={{ transform: `rotate(${media.rotation}deg)` }}
                       muted
                     />
                   )}
@@ -270,10 +290,18 @@ const Media = () => {
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold truncate">{media.name}</h3>
-                      <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
-                        <Clock className="h-3 w-3" />
-                        {media.duration}s
-                      </p>
+                      <div className="flex items-center gap-3 mt-1">
+                        <p className="text-sm text-muted-foreground flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {media.duration}s
+                        </p>
+                        {media.rotation > 0 && (
+                          <p className="text-sm text-muted-foreground flex items-center gap-1">
+                            <RotateCw className="h-3 w-3" />
+                            {media.rotation}°
+                          </p>
+                        )}
+                      </div>
                     </div>
                     <Button
                       variant="ghost"
