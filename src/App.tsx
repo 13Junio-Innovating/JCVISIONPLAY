@@ -12,6 +12,9 @@ import Screens from "./pages/Screens";
 import Preview from "./pages/Preview";
 import Player from "./pages/Player";
 import NotFound from "./pages/NotFound";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
+import Billing from "./pages/Billing";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +33,9 @@ const App = () => (
           <Route path="/screens" element={<Screens />} />
           <Route path="/preview/:id" element={<Preview />} />
           <Route path="/player/:playerKey" element={<Player />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/billing" element={<Billing />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

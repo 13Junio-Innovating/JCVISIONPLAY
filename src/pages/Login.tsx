@@ -128,6 +128,14 @@ const Login = () => {
                 >
                   {loading ? "Entrando..." : "Entrar"}
                 </Button>
+                <Button
+                  type="button"
+                  variant="link"
+                  className="w-full text-sm text-muted-foreground hover:text-primary"
+                  onClick={() => navigate("/forgot-password")}
+                >
+                  Esqueci minha senha
+                </Button>
               </form>
             </TabsContent>
             
