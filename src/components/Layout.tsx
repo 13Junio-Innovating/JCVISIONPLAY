@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Monitor, LayoutDashboard, Image, PlaySquare, Tv2, LogOut, Menu /*, CreditCard*/ } from "lucide-react";
+import { Monitor, LayoutDashboard, Image, PlaySquare, Tv2, LogOut, Menu, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
@@ -43,13 +43,13 @@ const Layout = ({ children }: LayoutProps) => {
     navigate("/login");
   };
 
-  // Item de pagamento desativado temporariamente
+  const BILLING_ENABLED = import.meta.env.VITE_ENABLE_BILLING === "true";
   const navItems = [
     { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
     { icon: Image, label: "Mídias", path: "/media" },
     { icon: PlaySquare, label: "Playlists", path: "/playlists" },
     { icon: Tv2, label: "Telas", path: "/screens" },
-    // { icon: CreditCard, label: "Pagamento", path: "/billing" },
+    ...(BILLING_ENABLED ? [{ icon: CreditCard, label: "Pagamento", path: "/billing" }] : []),
   ];
 
   const NavigationContent = () => (

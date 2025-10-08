@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { lazy, Suspense } from "react";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -14,8 +15,12 @@ import Player from "./pages/Player";
 import NotFound from "./pages/NotFound";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
-// Billing desativado temporariamente
-// import Billing from "./pages/Billing";
+// Feature flag para Billing
+const BILLING_ENABLED = import.meta.env.VITE_ENABLE_BILLING === "true";
+let BillingLazy: React.ComponentType<any> | null = null;
+if (BILLING_ENABLED) {
+  BillingLazy = lazy(() => import("./pages/Billing"));
+}
 
 const queryClient = new QueryClient();
 
@@ -36,8 +41,16 @@ const App = () => (
           <Route path="/player/:playerKey" element={<Player />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
-          {/* Rota de Billing desativada temporariamente */}
-          {/* <Route path="/billing" element={<Billing />} /> */}
+          {BILLING_ENABLED && BillingLazy && (
+            <Route
+              path="/billing"
+              element={
+                <Suspense fallback={<div />}> 
+                  <BillingLazy />
+                </Suspense>
+              }
+            />
+          )}
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
