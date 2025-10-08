@@ -14,7 +14,8 @@ import Player from "./pages/Player";
 import NotFound from "./pages/NotFound";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
-import Billing from "./pages/Billing";
+// Billing desativado temporariamente
+// import Billing from "./pages/Billing";
 
 const queryClient = new QueryClient();
 
@@ -35,7 +36,8 @@ const App = () => (
           <Route path="/player/:playerKey" element={<Player />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/billing" element={<Billing />} />
+          {/* Rota de Billing desativada temporariamente */}
+          {/* <Route path="/billing" element={<Billing />} /> */}
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
