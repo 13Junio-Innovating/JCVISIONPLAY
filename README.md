@@ -1,73 +1,151 @@
-# Welcome to your Lovable project
+# Display Forge
 
-## Project info
+Sistema completo de sinalização digital para hotéis e estabelecimentos comerciais, desenvolvido com React, TypeScript e Supabase.
 
-**URL**: https://lovable.dev/projects/c3d62c9e-c392-4944-a469-da325dc89539
+## 🚀 Funcionalidades
 
-## How can I edit this code?
+### 📺 Gestão de Telas
+- Criação e gerenciamento de múltiplas telas
+- Configuração automática de playlists para cada tela
+- 10 telas pré-configuradas com conteúdo temático
 
-There are several ways of editing your application.
+### 🎵 Sistema de Playlists
+- Criação de playlists personalizadas
+- Associação automática de mídia por categoria
+- Playlists temáticas: Bem-vindo, Cardápio, Entretenimento, Operacional e Totem
 
-**Use Lovable**
+### 📱 Mídia e Conteúdo
+- Upload de imagens e vídeos
+- Rotação automática de mídia (0°, 90°, 180°, 270°)
+- Suporte a SVG para gráficos vetoriais
+- 5 mídias de exemplo pré-carregadas
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/c3d62c9e-c392-4944-a469-da325dc89539) and start prompting.
+### 🔄 Player Avançado
+- Reprodução automática de playlists
+- Sistema offline com cache local
+- Indicadores visuais de status de conexão
+- Transições suaves entre mídias
 
-Changes made via Lovable will be committed automatically to this repo.
+### 👥 Autenticação
+- Sistema completo de login/registro
+- Recuperação de senha
+- Gestão de usuários via Supabase
 
-**Use your preferred IDE**
+## 🛠️ Tecnologias Utilizadas
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- **Frontend**: React 18 + TypeScript + Vite
+- **Styling**: Tailwind CSS + shadcn/ui
+- **Backend**: Supabase (PostgreSQL + Auth + Storage)
+- **Notificações**: React Hot Toast
+- **Ícones**: Lucide React
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## 📦 Instalação e Configuração
 
-Follow these steps:
+### Pré-requisitos
+- Node.js 18+ e npm
+- Conta no Supabase
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+### Passos de Instalação
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+```bash
+# 1. Clone o repositório
+git clone https://github.com/13Junio-Innovating/display-forge-36.git
 
-# Step 3: Install the necessary dependencies.
-npm i
+# 2. Navegue para o diretório
+cd display-forge-36
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# 3. Instale as dependências
+npm install
+
+# 4. Configure as variáveis de ambiente
+cp .env.example .env.local
+# Edite o arquivo .env.local com suas credenciais do Supabase
+
+# 5. Execute as migrações do banco
+npx supabase db push
+
+# 6. Inicie o servidor de desenvolvimento
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+### Configuração do Supabase
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+1. Crie um novo projeto no [Supabase](https://supabase.com)
+2. Configure as seguintes variáveis no arquivo `.env.local`:
+   ```
+   VITE_SUPABASE_URL=sua_url_do_supabase
+   VITE_SUPABASE_ANON_KEY=sua_chave_anonima
+   ```
+3. Execute as migrações incluídas no projeto
 
-**Use GitHub Codespaces**
+## 🏗️ Estrutura do Projeto
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```
+src/
+├── components/          # Componentes reutilizáveis
+│   ├── ui/             # Componentes da UI (shadcn)
+│   └── Layout.tsx      # Layout principal
+├── pages/              # Páginas da aplicação
+│   ├── Dashboard.tsx   # Painel principal
+│   ├── Media.tsx       # Gestão de mídia
+│   ├── Playlists.tsx   # Gestão de playlists
+│   ├── Screens.tsx     # Gestão de telas
+│   ├── Player.tsx      # Player de mídia
+│   └── ...            # Outras páginas
+├── lib/               # Utilitários e configurações
+└── App.tsx           # Componente raiz
+```
 
-## What technologies are used for this project?
+## 🎯 Fluxo de Uso
 
-This project is built with:
+1. **Registro/Login**: Acesse o sistema com suas credenciais
+2. **Upload de Mídia**: Faça upload de imagens e vídeos na seção Mídia
+3. **Criar Playlists**: Organize sua mídia em playlists temáticas
+4. **Configurar Telas**: Crie telas e associe playlists
+5. **Reprodução**: Use o Player para exibir conteúdo nas telas
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## 🔧 Scripts Disponíveis
 
-## How can I deploy this project?
+```bash
+npm run dev          # Servidor de desenvolvimento
+npm run build        # Build para produção
+npm run preview      # Preview do build
+npm run lint         # Verificação de código
+```
 
-Simply open [Lovable](https://lovable.dev/projects/c3d62c9e-c392-4944-a469-da325dc89539) and click on Share -> Publish.
+## 📱 Funcionalidades Offline
 
-## Can I connect a custom domain to my Lovable project?
+O sistema inclui suporte offline robusto:
+- Cache automático de playlists e mídia
+- Detecção de status de conexão
+- Fallback para dados locais
+- Indicadores visuais de modo offline
 
-Yes, you can!
+## 🎨 Temas e Personalização
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+O sistema vem com 5 temas pré-configurados:
+- **Bem-vindo Hóspede**: Mensagens de boas-vindas
+- **Cardápio Digital**: Menus e ofertas
+- **Entretenimento Geral**: Conteúdo de entretenimento
+- **Informações Operacionais**: Avisos e informações
+- **Totem Vertical**: Conteúdo para displays verticais
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+## 🤝 Contribuição
+
+1. Faça um fork do projeto
+2. Crie uma branch para sua feature (`git checkout -b feature/nova-feature`)
+3. Commit suas mudanças (`git commit -m 'Adiciona nova feature'`)
+4. Push para a branch (`git push origin feature/nova-feature`)
+5. Abra um Pull Request
+
+## 📄 Licença
+
+Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+
+## 📞 Suporte
+
+Para suporte e dúvidas, entre em contato através do [GitHub Issues](https://github.com/13Junio-Innovating/display-forge-36/issues).
+
+---
+
+Desenvolvido com ❤️ pela equipe 13Junio Innovating
