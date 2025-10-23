@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -112,7 +113,7 @@ const Playlists = () => {
 
       const { error } = await supabase.from("playlists").insert({
         name: playlistName,
-        items: selectedMedia as any,
+        items: JSON.parse(JSON.stringify(selectedMedia)) as Json,
         created_by: user.id,
       });
 
@@ -123,9 +124,9 @@ const Playlists = () => {
       setPlaylistName("");
       setSelectedMedia([]);
       fetchData();
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error creating playlist:", error);
-      toast.error(error.message || "Erro ao criar playlist");
+      toast.error(error instanceof Error ? error.message : "Erro ao criar playlist");
     }
   };
 
@@ -139,6 +140,104 @@ const Playlists = () => {
     } catch (error) {
       console.error("Error deleting playlist:", error);
       toast.error("Erro ao excluir playlist");
+    }
+  };
+
+  const handleCreateAllPlaylists = async () => {
+    const playlistsToCreate = [
+      {
+        name: "Entretenimento Geral",
+        description: "Conteúdo para áreas de espera e entretenimento"
+      },
+      {
+        name: "Informações Operacionais", 
+        description: "Instruções, mapas e informações importantes"
+      },
+      {
+        name: "Cardápio Digital",
+        description: "Pratos, bebidas e promoções da lanchonete"
+      },
+      {
+        name: "Bem-vindo Hóspede",
+        description: "Informações e serviços do hotel para quartos"
+      }
+    ];
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
+      // Primeiro, criar as mídias de exemplo
+      const sampleMedias = [
+        {
+          name: "Entretenimento Geral",
+          url: "/sample-images/entretenimento-geral.svg",
+          type: "image",
+          duration: 10,
+          uploaded_by: user.id
+        },
+        {
+          name: "Informações Operacionais",
+          url: "/sample-images/informacoes-operacionais.svg", 
+          type: "image",
+          duration: 15,
+          uploaded_by: user.id
+        },
+        {
+          name: "Cardápio Digital",
+          url: "/sample-images/cardapio-digital.svg",
+          type: "image", 
+          duration: 12,
+          uploaded_by: user.id
+        },
+        {
+          name: "Bem-vindo Hóspede",
+          url: "/sample-images/bem-vindo-hospede.svg",
+          type: "image",
+          duration: 8,
+          uploaded_by: user.id
+        },
+        {
+          name: "Totem Vertical",
+          url: "/sample-images/totem-vertical.svg",
+          type: "image",
+          duration: 10,
+          uploaded_by: user.id
+        }
+      ];
+
+      // Inserir as mídias
+      const { data: mediaData, error: mediaError } = await supabase
+        .from("media")
+        .insert(sampleMedias)
+        .select();
+
+      if (mediaError) throw mediaError;
+
+      // Criar as playlists com as mídias
+      const playlistsData = playlistsToCreate.map((playlist, index) => {
+        const mediaId = mediaData[index]?.id;
+        const items = mediaId ? [{
+          mediaId: mediaId,
+          duration: sampleMedias[index].duration
+        }] : [];
+
+        return {
+          name: playlist.name,
+          items: JSON.parse(JSON.stringify(items)) as Json,
+          created_by: user.id,
+        };
+      });
+
+      const { error } = await supabase.from("playlists").insert(playlistsData);
+
+      if (error) throw error;
+
+      toast.success(`${playlistsToCreate.length} playlists criadas com mídias de exemplo!`);
+      fetchData();
+    } catch (error) {
+      console.error("Error creating playlists:", error);
+      toast.error(error instanceof Error ? error.message : "Erro ao criar playlists");
     }
   };
 
@@ -161,13 +260,23 @@ const Playlists = () => {
             </p>
           </div>
 
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-gradient-to-r from-primary to-accent hover:opacity-90">
-                <Plus className="mr-2 h-4 w-4" />
-                Nova Playlist
-              </Button>
-            </DialogTrigger>
+          <div className="flex gap-2">
+            <Button 
+              onClick={handleCreateAllPlaylists}
+              variant="outline"
+              className="border-primary/20 hover:bg-primary/10"
+            >
+              <PlaySquare className="mr-2 h-4 w-4" />
+              Criar Playlists Padrão
+            </Button>
+            
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-gradient-to-r from-primary to-accent hover:opacity-90">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Nova Playlist
+                </Button>
+              </DialogTrigger>
             <DialogContent className="bg-card/95 backdrop-blur-xl border-border/50 max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Criar Playlist</DialogTitle>
@@ -304,6 +413,7 @@ const Playlists = () => {
               </form>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
         {loading ? (
