@@ -17,7 +17,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 // Feature flag para Billing
 const BILLING_ENABLED = import.meta.env.VITE_ENABLE_BILLING === "true";
-let BillingLazy: React.ComponentType<any> | null = null;
+let BillingLazy: React.ComponentType | null = null;
 if (BILLING_ENABLED) {
   BillingLazy = lazy(() => import("./pages/Billing"));
 }

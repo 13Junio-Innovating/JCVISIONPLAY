@@ -87,9 +87,9 @@ const Screens = () => {
       setDialogOpen(false);
       setScreenName("");
       fetchData();
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error creating screen:", error);
-      toast.error(error.message || "Erro ao criar tela");
+      toast.error(error instanceof Error ? error.message : "Erro ao criar tela");
     }
   };
 
@@ -120,6 +120,97 @@ const Screens = () => {
     } catch (error) {
       console.error("Error deleting screen:", error);
       toast.error("Erro ao excluir tela");
+    }
+  };
+
+  const handleCreateAllScreens = async () => {
+    const screenNames = [
+      "TOTEM - ÁREA SOCIAL",
+      "TOTEM - CATRACA CIE", 
+      "TOTEM - FOYER CIE",
+      "TOTEM - HI",
+      "TV - CAMINHO AÇORIANO",
+      "TV - CANAL 3 (QUARTOS)",
+      "TV - CENTRAL DO HÓSPEDE",
+      "TV - LANCHONETE",
+      "VIDEOWALL - HI",
+      "VIDEOWALL - ÁREA SOCIAL"
+    ];
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
+      const screensToCreate = screenNames.map(name => ({
+        name,
+        created_by: user.id,
+      }));
+
+      const { error } = await supabase.from("screens").insert(screensToCreate);
+
+      if (error) throw error;
+
+      toast.success(`${screenNames.length} telas criadas com sucesso!`);
+      fetchData();
+    } catch (error) {
+      console.error("Error creating screens:", error);
+      toast.error(error instanceof Error ? error.message : "Erro ao criar telas");
+    }
+  };
+
+  const handleAssignAllPlaylists = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
+      // Buscar todas as playlists e telas do usuário
+      const [playlistsData, screensData] = await Promise.all([
+        supabase.from("playlists").select("id, name").eq("created_by", user.id),
+        supabase.from("screens").select("id, name").eq("created_by", user.id)
+      ]);
+
+      if (playlistsData.error) throw playlistsData.error;
+      if (screensData.error) throw screensData.error;
+
+      const playlists = playlistsData.data;
+      const screens = screensData.data;
+
+      // Mapeamento de telas para playlists
+      const screenPlaylistMapping: { [key: string]: string } = {};
+      
+      // Encontrar playlists por nome
+      const entretenimentoPlaylist = playlists.find(p => p.name === "Entretenimento Geral");
+      const operacionalPlaylist = playlists.find(p => p.name === "Informações Operacionais");
+      const cardapioPlaylist = playlists.find(p => p.name === "Cardápio Digital");
+      const bemVindoPlaylist = playlists.find(p => p.name === "Bem-vindo Hóspede");
+
+      // Atribuir playlists às telas
+      screens.forEach(screen => {
+        if (screen.name.includes("ÁREA SOCIAL") || screen.name.includes("HI")) {
+          screenPlaylistMapping[screen.id] = entretenimentoPlaylist?.id || "";
+        } else if (screen.name.includes("CATRACA") || screen.name.includes("FOYER")) {
+          screenPlaylistMapping[screen.id] = operacionalPlaylist?.id || "";
+        } else if (screen.name.includes("LANCHONETE")) {
+          screenPlaylistMapping[screen.id] = cardapioPlaylist?.id || "";
+        } else if (screen.name.includes("QUARTOS") || screen.name.includes("CENTRAL DO HÓSPEDE")) {
+          screenPlaylistMapping[screen.id] = bemVindoPlaylist?.id || "";
+        } else if (screen.name.includes("CAMINHO AÇORIANO")) {
+          screenPlaylistMapping[screen.id] = entretenimentoPlaylist?.id || "";
+        }
+      });
+
+      // Atualizar as telas com as playlists atribuídas
+      const updates = Object.entries(screenPlaylistMapping).map(([screenId, playlistId]) => 
+        supabase.from("screens").update({ assigned_playlist: playlistId }).eq("id", screenId)
+      );
+
+      await Promise.all(updates);
+
+      toast.success("Playlists atribuídas com sucesso a todas as telas!");
+      fetchData();
+    } catch (error) {
+      console.error("Error assigning playlists:", error);
+      toast.error(error instanceof Error ? error.message : "Erro ao atribuir playlists");
     }
   };
 
@@ -157,41 +248,61 @@ const Screens = () => {
             </p>
           </div>
 
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-gradient-to-r from-primary to-accent hover:opacity-90">
-                <Plus className="mr-2 h-4 w-4" />
-                Nova Tela
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="bg-card/95 backdrop-blur-xl border-border/50">
-              <DialogHeader>
-                <DialogTitle>Criar Nova Tela</DialogTitle>
-                <DialogDescription>
-                  Cadastre um novo dispositivo para exibir conteúdo
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleCreateScreen} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="screen-name">Nome da Tela</Label>
-                  <Input
-                    id="screen-name"
-                    value={screenName}
-                    onChange={(e) => setScreenName(e.target.value)}
-                    placeholder="Ex: Recepção, Corredor A"
-                    required
-                    className="bg-secondary/50"
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90"
-                >
-                  Criar Tela
+          <div className="flex gap-2">
+            <Button 
+              onClick={handleCreateAllScreens}
+              variant="outline"
+              className="border-primary/20 hover:bg-primary/10"
+            >
+              <Tv2 className="mr-2 h-4 w-4" />
+              Criar Todas as Telas
+            </Button>
+            
+            <Button 
+              onClick={handleAssignAllPlaylists}
+              variant="outline"
+              className="border-accent/20 hover:bg-accent/10"
+            >
+              <Plus className="mr-2 h-4 w-4" />
+              Atribuir Playlists
+            </Button>
+            
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-gradient-to-r from-primary to-accent hover:opacity-90">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Nova Tela
                 </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent className="bg-card/95 backdrop-blur-xl border-border/50">
+                <DialogHeader>
+                  <DialogTitle>Criar Nova Tela</DialogTitle>
+                  <DialogDescription>
+                    Cadastre um novo dispositivo para exibir conteúdo
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleCreateScreen} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="screen-name">Nome da Tela</Label>
+                    <Input
+                      id="screen-name"
+                      value={screenName}
+                      onChange={(e) => setScreenName(e.target.value)}
+                      placeholder="Ex: Recepção, Corredor A"
+                      required
+                      className="bg-secondary/50"
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90"
+                  >
+                    Criar Tela
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
 
         {loading ? (

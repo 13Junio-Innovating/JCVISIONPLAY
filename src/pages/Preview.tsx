@@ -71,7 +71,7 @@ const Preview = () => {
 
       setPlaylist({ ...playlistData, items });
       setMediaFiles(mediaData || []);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error fetching playlist:", error);
       toast.error("Erro ao carregar playlist");
       navigate("/playlists");

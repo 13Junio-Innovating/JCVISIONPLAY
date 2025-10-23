@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Monitor, LayoutDashboard, Image, PlaySquare, Tv2, LogOut, Menu, CreditCard } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import type { User } from "@supabase/supabase-js";
 
 interface LayoutProps {
   children: ReactNode;
@@ -12,7 +13,7 @@ interface LayoutProps {
 
 const Layout = ({ children }: LayoutProps) => {
   const navigate = useNavigate();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -105,7 +106,7 @@ const Layout = ({ children }: LayoutProps) => {
                 <Monitor className="w-5 h-5 text-white" />
               </div>
               <span className="font-bold text-xl bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                Digital Signage
+                JUNINHO PLAY
               </span>
             </div>
           </div>

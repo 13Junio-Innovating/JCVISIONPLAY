@@ -40,8 +40,8 @@ const Login = () => {
 
       toast.success("Login realizado com sucesso!");
       navigate("/dashboard");
-    } catch (error: any) {
-      toast.error(error.message || "Erro ao fazer login");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao fazer login");
     } finally {
       setLoading(false);
     }
@@ -67,8 +67,8 @@ const Login = () => {
 
       toast.success("Conta criada com sucesso!");
       navigate("/dashboard");
-    } catch (error: any) {
-      toast.error(error.message || "Erro ao criar conta");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Erro ao criar conta");
     } finally {
       setLoading(false);
     }
@@ -82,7 +82,7 @@ const Login = () => {
             <Monitor className="w-8 h-8 text-white" />
           </div>
           <CardTitle className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            Digital Signage
+            JUNINHO PLAY
           </CardTitle>
           <CardDescription className="text-muted-foreground">
             Gerencie seus painéis digitais de forma simples
