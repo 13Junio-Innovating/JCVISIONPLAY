@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { Upload, Trash2, Image as ImageIcon, Video, Clock, RotateCw } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
+import { loggingService } from "@/services/loggingService";
 
 interface MediaFile {
   id: string;
@@ -108,11 +109,38 @@ const Media = () => {
 
       if (insertError) throw insertError;
 
+      // Log da atividade de upload de mídia
+      await loggingService.logUserActivity(
+        'upload_media',
+        'media',
+        '', // ID será gerado pelo banco
+        { 
+          media_name: name || file.name,
+          file_type: fileType,
+          file_size: file.size,
+          duration: duration,
+          rotation: rotation
+        }
+      );
+
       toast.success("Mídia enviada com sucesso!");
       setDialogOpen(false);
       fetchMedia();
       (e.target as HTMLFormElement).reset();
     } catch (error) {
+      // Log do erro de upload de mídia
+      await loggingService.logError(
+        error instanceof Error ? error : new Error('Erro desconhecido ao fazer upload'),
+        'upload_media_error',
+        { 
+          media_name: name || file.name,
+          file_type: file?.type,
+          file_size: file?.size,
+          attempted_action: 'upload_media'
+        },
+        'medium'
+      );
+      
       console.error("Error uploading:", error);
       toast.error(error instanceof Error ? error.message : "Erro ao enviar mídia");
     } finally {
@@ -125,6 +153,13 @@ const Media = () => {
     if (!confirm("Deseja realmente excluir esta mídia?")) return;
 
     try {
+      // Buscar informações da mídia antes de excluir para o log
+      const { data: mediaData } = await supabase
+        .from("media")
+        .select("name, type, duration")
+        .eq("id", id)
+        .single();
+
       // Extract file path from URL
       const urlParts = url.split("/");
       const filePath = urlParts.slice(-2).join("/");
@@ -132,9 +167,32 @@ const Media = () => {
       await supabase.storage.from("media").remove([filePath]);
       await supabase.from("media").delete().eq("id", id);
 
+      // Log da atividade de exclusão de mídia
+      await loggingService.logUserActivity(
+        'delete_media',
+        'media',
+        id,
+        { 
+          media_name: mediaData?.name,
+          file_type: mediaData?.type,
+          duration: mediaData?.duration
+        }
+      );
+
       toast.success("Mídia excluída com sucesso!");
       fetchMedia();
     } catch (error) {
+      // Log do erro de exclusão de mídia
+      await loggingService.logError(
+        error instanceof Error ? error : new Error('Erro desconhecido ao excluir mídia'),
+        'delete_media_error',
+        { 
+          media_id: id,
+          attempted_action: 'delete_media'
+        },
+        'medium'
+      );
+      
       console.error("Error deleting:", error);
       toast.error("Erro ao excluir mídia");
     }

@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Trash2, PlaySquare, Eye, Clock, X } from "lucide-react";
+import { Plus, Trash2, PlaySquare, Eye, Clock, X, RefreshCw } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { loggingService } from "@/services/loggingService";
 
 interface MediaFile {
   id: string;
@@ -111,13 +112,25 @@ const Playlists = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
-      const { error } = await supabase.from("playlists").insert({
+      const { data, error } = await supabase.from("playlists").insert({
         name: playlistName,
         items: JSON.parse(JSON.stringify(selectedMedia)) as Json,
         created_by: user.id,
-      });
+      }).select().single();
 
       if (error) throw error;
+
+      // Log da atividade de criação de playlist
+      await loggingService.logUserActivity(
+        'create_playlist',
+        'playlist',
+        data.id,
+        { 
+          playlist_name: playlistName,
+          media_count: selectedMedia.length,
+          media_items: selectedMedia.map(item => item.mediaId)
+        }
+      );
 
       toast.success("Playlist criada com sucesso!");
       setDialogOpen(false);
@@ -125,6 +138,18 @@ const Playlists = () => {
       setSelectedMedia([]);
       fetchData();
     } catch (error) {
+      // Log do erro de criação de playlist
+      await loggingService.logError(
+        error instanceof Error ? error : new Error('Erro desconhecido ao criar playlist'),
+        'create_playlist_error',
+        { 
+          playlist_name: playlistName,
+          media_count: selectedMedia.length,
+          attempted_action: 'create_playlist'
+        },
+        'medium'
+      );
+      
       console.error("Error creating playlist:", error);
       toast.error(error instanceof Error ? error.message : "Erro ao criar playlist");
     }
@@ -134,10 +159,37 @@ const Playlists = () => {
     if (!confirm("Deseja realmente excluir esta playlist?")) return;
 
     try {
+      // Buscar informações da playlist antes de excluir para o log
+      const { data: playlistData } = await supabase
+        .from("playlists")
+        .select("name, items")
+        .eq("id", id)
+        .single();
+
       await supabase.from("playlists").delete().eq("id", id);
+
+      // Log da atividade de exclusão de playlist
+      await loggingService.logUserActivity(
+        'delete_playlist',
+        'playlist',
+        id,
+        { 
+          playlist_name: playlistData?.name,
+          media_count: Array.isArray(playlistData?.items) ? playlistData.items.length : 0
+        }
+      );
+
       toast.success("Playlist excluída com sucesso!");
       fetchData();
     } catch (error) {
+      // Log do erro de exclusão de playlist
+      await loggingService.logError(
+        error instanceof Error ? error : new Error('Erro desconhecido ao excluir playlist'),
+        'delete_playlist_error',
+        { playlist_id: id, attempted_action: 'delete_playlist' },
+        'medium'
+      );
+      
       console.error("Error deleting playlist:", error);
       toast.error("Erro ao excluir playlist");
     }
@@ -247,6 +299,143 @@ const Playlists = () => {
     return items.reduce((total, item) => total + item.duration, 0);
   };
 
+  const handleAutoUpdatePlaylists = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+  
+      // Buscar todas as mídias do usuário
+      const { data: allMedia, error: mediaError } = await supabase
+        .from("media")
+        .select("*")
+        .eq("uploaded_by", user.id);
+  
+      if (mediaError) throw mediaError;
+  
+      // Buscar todas as playlists existentes
+      const { data: existingPlaylists, error: playlistError } = await supabase
+        .from("playlists")
+        .select("*")
+        .eq("created_by", user.id);
+  
+      if (playlistError) throw playlistError;
+  
+      if (!allMedia || allMedia.length === 0) {
+        toast.error("Nenhuma mídia encontrada para adicionar às playlists");
+        return;
+      }
+  
+      // Categorizar mídias por tipo/nome para diferentes playlists
+      const categorizeMidiaForPlaylist = (media: MediaFile, playlistName: string) => {
+        const mediaName = media.name.toLowerCase();
+        
+        switch (playlistName) {
+          case "Entretenimento Geral":
+            return mediaName.includes("entretenimento") || 
+                   mediaName.includes("diversão") || 
+                   mediaName.includes("lazer") ||
+                   mediaName.includes("social") ||
+                   media.type === "video";
+          
+          case "Informações Operacionais":
+            return mediaName.includes("informação") || 
+                   mediaName.includes("operacional") || 
+                   mediaName.includes("instrução") ||
+                   mediaName.includes("mapa") ||
+                   mediaName.includes("aviso");
+          
+          case "Cardápio Digital":
+            return mediaName.includes("cardápio") || 
+                   mediaName.includes("menu") || 
+                   mediaName.includes("comida") ||
+                   mediaName.includes("bebida") ||
+                   mediaName.includes("lanchonete");
+          
+          case "Bem-vindo Hóspede":
+            return mediaName.includes("bem-vindo") || 
+                   mediaName.includes("hospede") || 
+                   mediaName.includes("quarto") ||
+                   mediaName.includes("hotel") ||
+                   mediaName.includes("serviço");
+          
+          case "Totem Vertical":
+            return mediaName.includes("totem") || 
+                   mediaName.includes("vertical") ||
+                   false ||
+                   false;
+          
+          default:
+            return false;
+        }
+      };
+  
+      let updatedCount = 0;
+  
+      // Atualizar cada playlist com mídias relevantes
+      for (const playlist of existingPlaylists) {
+        const relevantMedia = allMedia.filter(media => 
+          categorizeMidiaForPlaylist(media, playlist.name)
+        );
+  
+        if (relevantMedia.length === 0) continue;
+  
+        // Obter itens atuais da playlist
+        const currentItems = Array.isArray(playlist.items) ? playlist.items : [];
+        const currentMediaIds = (currentItems as unknown as PlaylistItem[]).map((item) => item.mediaId);
+  
+        // Adicionar novas mídias que não estão na playlist
+        const newItems = relevantMedia
+          .filter(media => !currentMediaIds.includes(media.id))
+          .map(media => ({
+            mediaId: media.id,
+            duration: media.duration || 10
+          }));
+  
+        if (newItems.length > 0) {
+          const updatedItems = [...currentItems, ...newItems];
+  
+          const { error: updateError } = await supabase
+            .from("playlists")
+            .update({ items: JSON.parse(JSON.stringify(updatedItems)) })
+            .eq("id", playlist.id);
+  
+          if (updateError) throw updateError;
+          updatedCount++;
+        }
+      }
+  
+      // Se não há playlists, adicionar todas as mídias a uma playlist geral
+      if (existingPlaylists.length === 0) {
+        const allMediaItems = allMedia.map(media => ({
+          mediaId: media.id,
+          duration: media.duration || 10
+        }));
+  
+        const { error: createError } = await supabase
+          .from("playlists")
+          .insert({
+            name: "Todas as Mídias",
+            items: JSON.parse(JSON.stringify(allMediaItems)),
+            created_by: user.id
+          });
+  
+        if (createError) throw createError;
+        updatedCount = 1;
+      }
+  
+      if (updatedCount > 0) {
+        toast.success(`${updatedCount} playlist(s) atualizada(s) com suas novas mídias!`);
+        fetchData();
+      } else {
+        toast.info("Todas as mídias já estão nas playlists apropriadas");
+      }
+  
+    } catch (error) {
+      console.error("Error updating playlists:", error);
+      toast.error(error instanceof Error ? error.message : "Erro ao atualizar playlists");
+    }
+  };
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -261,15 +450,6 @@ const Playlists = () => {
           </div>
 
           <div className="flex gap-2">
-            <Button 
-              onClick={handleCreateAllPlaylists}
-              variant="outline"
-              className="border-primary/20 hover:bg-primary/10"
-            >
-              <PlaySquare className="mr-2 h-4 w-4" />
-              Criar Playlists Padrão
-            </Button>
-            
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="bg-gradient-to-r from-primary to-accent hover:opacity-90">

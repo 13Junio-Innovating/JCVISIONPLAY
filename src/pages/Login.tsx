@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Monitor } from "lucide-react";
+import { loggingService } from "@/services/loggingService";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -38,9 +39,25 @@ const Login = () => {
 
       if (error) throw error;
 
+      // Log da atividade de login bem-sucedido
+      await loggingService.logUserActivity(
+        'login',
+        'auth',
+        undefined,
+        { email, login_method: 'email_password' }
+      );
+
       toast.success("Login realizado com sucesso!");
       navigate("/dashboard");
     } catch (error) {
+      // Log do erro de login
+      await loggingService.logError(
+        error instanceof Error ? error : new Error('Erro desconhecido no login'),
+        'login_error',
+        { email, attempted_action: 'login' },
+        'medium'
+      );
+      
       toast.error(error instanceof Error ? error.message : "Erro ao fazer login");
     } finally {
       setLoading(false);
@@ -65,9 +82,25 @@ const Login = () => {
 
       if (error) throw error;
 
+      // Log da atividade de cadastro bem-sucedido
+      await loggingService.logUserActivity(
+        'signup',
+        'auth',
+        undefined,
+        { email, full_name: fullName, signup_method: 'email_password' }
+      );
+
       toast.success("Conta criada com sucesso!");
       navigate("/dashboard");
     } catch (error) {
+      // Log do erro de cadastro
+      await loggingService.logError(
+        error instanceof Error ? error : new Error('Erro desconhecido no cadastro'),
+        'signup_error',
+        { email, full_name: fullName, attempted_action: 'signup' },
+        'medium'
+      );
+      
       toast.error(error instanceof Error ? error.message : "Erro ao criar conta");
     } finally {
       setLoading(false);

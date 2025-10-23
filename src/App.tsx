@@ -15,6 +15,7 @@ import Player from "./pages/Player";
 import NotFound from "./pages/NotFound";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
+import Logs from "./pages/Logs";
 // Feature flag para Billing
 const BILLING_ENABLED = import.meta.env.VITE_ENABLE_BILLING === "true";
 let BillingLazy: React.ComponentType | null = null;
@@ -41,6 +42,7 @@ const App = () => (
           <Route path="/player/:playerKey" element={<Player />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/logs" element={<Logs />} />
           {BILLING_ENABLED && BillingLazy && (
             <Route
               path="/billing"

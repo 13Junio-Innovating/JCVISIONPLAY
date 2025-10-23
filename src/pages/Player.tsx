@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { MediaCache } from "@/utils/mediaCache";
+import { loggingService } from "@/services/loggingService";
 
 interface MediaFile {
   id: string;
@@ -24,6 +26,7 @@ interface Playlist {
 interface OfflineData {
   playlist: Playlist;
   mediaFiles: MediaFile[];
+  cachedUrls: { [mediaId: string]: string };
   lastUpdate: number;
 }
 
@@ -31,6 +34,7 @@ const Player = () => {
   const { playerKey } = useParams();
   const [playlist, setPlaylist] = useState<Playlist | null>(null);
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
+  const [cachedUrls, setCachedUrls] = useState<{ [mediaId: string]: string }>({});
   const [currentIndex, setCurrentIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
@@ -73,6 +77,7 @@ const Player = () => {
         if (Date.now() - offlineData.lastUpdate < 24 * 60 * 60 * 1000) {
           setPlaylist(offlineData.playlist);
           setMediaFiles(offlineData.mediaFiles);
+          setCachedUrls(offlineData.cachedUrls || {});
         }
       }
     } catch (error) {
@@ -80,11 +85,12 @@ const Player = () => {
     }
   };
 
-  const saveOfflineData = (playlist: Playlist, mediaFiles: MediaFile[]) => {
+  const saveOfflineData = (playlist: Playlist, mediaFiles: MediaFile[], cachedUrls: { [mediaId: string]: string }) => {
     try {
       const offlineData: OfflineData = {
         playlist,
         mediaFiles,
+        cachedUrls,
         lastUpdate: Date.now()
       };
       localStorage.setItem(`player_${playerKey}_offline`, JSON.stringify(offlineData));
@@ -187,11 +193,49 @@ const Player = () => {
       setMediaFiles(newMediaFiles);
       setError(null);
 
+      // Pré-carregar mídias no cache
+      await MediaCache.preloadPlaylistMedia(newMediaFiles);
+      
+      // Criar URLs em cache para uso offline
+      const newCachedUrls: { [mediaId: string]: string } = {};
+      for (const media of newMediaFiles) {
+        const cachedUrl = await MediaCache.getCachedMediaUrl(media.url);
+        if (cachedUrl) {
+          newCachedUrls[media.id] = cachedUrl;
+        }
+      }
+      setCachedUrls(newCachedUrls);
+
       // Salvar dados offline para uso futuro
-      saveOfflineData(newPlaylist, newMediaFiles);
+      saveOfflineData(newPlaylist, newMediaFiles, newCachedUrls);
+
+      // Log da atividade de carregamento de playlist
+      await loggingService.logUserActivity(
+        'load_playlist',
+        'player',
+        playerKey,
+        { 
+          playlist_id: newPlaylist.id,
+          playlist_name: newPlaylist.name,
+          media_count: newMediaFiles.length,
+          is_offline: isOffline
+        }
+      );
 
     } catch (error) {
       console.error("Error fetching playlist:", error);
+      
+      // Log do erro de carregamento de playlist
+      await loggingService.logError(
+        error instanceof Error ? error : new Error('Erro desconhecido ao carregar playlist'),
+        'load_playlist_error',
+        { 
+          player_key: playerKey,
+          attempted_action: 'load_playlist',
+          is_offline: isOffline
+        },
+        'high'
+      );
       
       // Se estiver offline há mais de 30 minutos, usar dados em cache
       const offlineTime = Date.now() - lastOnlineTime;
@@ -209,7 +253,14 @@ const Player = () => {
   const getCurrentMedia = () => {
     if (!playlist || playlist.items.length === 0) return null;
     const currentItem = playlist.items[currentIndex];
-    return mediaFiles.find((m) => m.id === currentItem.mediaId);
+    const media = mediaFiles.find((m) => m.id === currentItem.mediaId);
+    
+    if (media && isOffline && cachedUrls[media.id]) {
+      // Usar URL em cache quando offline
+      return { ...media, url: cachedUrls[media.id] };
+    }
+    
+    return media;
   };
 
   const currentMedia = getCurrentMedia();

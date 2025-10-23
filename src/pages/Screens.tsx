@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { Plus, Trash2, Tv2, Circle, Copy, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { loggingService } from "@/services/loggingService";
 
 interface Playlist {
   id: string;
@@ -76,18 +77,34 @@ const Screens = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
-      const { error } = await supabase.from("screens").insert({
+      const { data, error } = await supabase.from("screens").insert({
         name: screenName,
         created_by: user.id,
-      });
+      }).select().single();
 
       if (error) throw error;
+
+      // Log da atividade de criação de tela
+      await loggingService.logUserActivity(
+        'create_screen',
+        'screen',
+        data.id,
+        { screen_name: screenName }
+      );
 
       toast.success("Tela criada com sucesso!");
       setDialogOpen(false);
       setScreenName("");
       fetchData();
     } catch (error) {
+      // Log do erro de criação de tela
+      await loggingService.logError(
+        error instanceof Error ? error : new Error('Erro desconhecido ao criar tela'),
+        'create_screen_error',
+        { screen_name: screenName, attempted_action: 'create_screen' },
+        'medium'
+      );
+      
       console.error("Error creating screen:", error);
       toast.error(error instanceof Error ? error.message : "Erro ao criar tela");
     }
@@ -102,9 +119,25 @@ const Screens = () => {
 
       if (error) throw error;
 
+      // Log da atividade de atualização de playlist
+      await loggingService.logUserActivity(
+        'update_screen_playlist',
+        'screen',
+        screenId,
+        { playlist_id: playlistId }
+      );
+
       toast.success("Playlist atualizada!");
       fetchData();
     } catch (error) {
+      // Log do erro de atualização de playlist
+      await loggingService.logError(
+        error instanceof Error ? error : new Error('Erro desconhecido ao atualizar playlist'),
+        'update_screen_playlist_error',
+        { screen_id: screenId, playlist_id: playlistId, attempted_action: 'update_screen_playlist' },
+        'medium'
+      );
+      
       console.error("Error updating playlist:", error);
       toast.error("Erro ao atualizar playlist");
     }
@@ -114,10 +147,34 @@ const Screens = () => {
     if (!confirm("Deseja realmente excluir esta tela?")) return;
 
     try {
+      // Buscar informações da tela antes de excluir para o log
+      const { data: screenData } = await supabase
+        .from("screens")
+        .select("name")
+        .eq("id", id)
+        .single();
+
       await supabase.from("screens").delete().eq("id", id);
+
+      // Log da atividade de exclusão de tela
+      await loggingService.logUserActivity(
+        'delete_screen',
+        'screen',
+        id,
+        { screen_name: screenData?.name }
+      );
+
       toast.success("Tela excluída com sucesso!");
       fetchData();
     } catch (error) {
+      // Log do erro de exclusão de tela
+      await loggingService.logError(
+        error instanceof Error ? error : new Error('Erro desconhecido ao excluir tela'),
+        'delete_screen_error',
+        { screen_id: id, attempted_action: 'delete_screen' },
+        'medium'
+      );
+      
       console.error("Error deleting screen:", error);
       toast.error("Erro ao excluir tela");
     }
@@ -158,59 +215,100 @@ const Screens = () => {
     }
   };
 
-  const handleAssignAllPlaylists = async () => {
+  const handleAutoAssignPlaylists = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
-      // Buscar todas as playlists e telas do usuário
-      const [playlistsData, screensData] = await Promise.all([
-        supabase.from("playlists").select("id, name").eq("created_by", user.id),
-        supabase.from("screens").select("id, name").eq("created_by", user.id)
-      ]);
+      // Buscar todas as telas do usuário
+      const { data: allScreens, error: screensError } = await supabase
+        .from("screens")
+        .select("*")
+        .eq("created_by", user.id);
 
-      if (playlistsData.error) throw playlistsData.error;
-      if (screensData.error) throw screensData.error;
+      if (screensError) throw screensError;
 
-      const playlists = playlistsData.data;
-      const screens = screensData.data;
+      // Buscar todas as playlists do usuário
+      const { data: allPlaylists, error: playlistsError } = await supabase
+        .from("playlists")
+        .select("*")
+        .eq("created_by", user.id);
 
-      // Mapeamento de telas para playlists
-      const screenPlaylistMapping: { [key: string]: string } = {};
-      
-      // Encontrar playlists por nome
-      const entretenimentoPlaylist = playlists.find(p => p.name === "Entretenimento Geral");
-      const operacionalPlaylist = playlists.find(p => p.name === "Informações Operacionais");
-      const cardapioPlaylist = playlists.find(p => p.name === "Cardápio Digital");
-      const bemVindoPlaylist = playlists.find(p => p.name === "Bem-vindo Hóspede");
+      if (playlistsError) throw playlistsError;
 
-      // Atribuir playlists às telas
-      screens.forEach(screen => {
-        if (screen.name.includes("ÁREA SOCIAL") || screen.name.includes("HI")) {
-          screenPlaylistMapping[screen.id] = entretenimentoPlaylist?.id || "";
-        } else if (screen.name.includes("CATRACA") || screen.name.includes("FOYER")) {
-          screenPlaylistMapping[screen.id] = operacionalPlaylist?.id || "";
-        } else if (screen.name.includes("LANCHONETE")) {
-          screenPlaylistMapping[screen.id] = cardapioPlaylist?.id || "";
-        } else if (screen.name.includes("QUARTOS") || screen.name.includes("CENTRAL DO HÓSPEDE")) {
-          screenPlaylistMapping[screen.id] = bemVindoPlaylist?.id || "";
-        } else if (screen.name.includes("CAMINHO AÇORIANO")) {
-          screenPlaylistMapping[screen.id] = entretenimentoPlaylist?.id || "";
+      if (!allScreens || allScreens.length === 0) {
+        toast.error("Nenhuma tela encontrada. Crie telas primeiro.");
+        return;
+      }
+
+      if (!allPlaylists || allPlaylists.length === 0) {
+        toast.error("Nenhuma playlist encontrada. Crie playlists primeiro.");
+        return;
+      }
+
+      // Mapear telas para playlists baseado no nome
+      const screenPlaylistMapping = (screenName: string) => {
+        const name = screenName.toLowerCase();
+        
+        // Procurar playlist que melhor combina com o nome da tela
+        const matchingPlaylist = allPlaylists.find(playlist => {
+          const playlistName = playlist.name.toLowerCase();
+          
+          // Mapeamento específico baseado no nome da tela
+          if (name.includes("entretenimento") || name.includes("espera") || name.includes("lobby")) {
+            return playlistName.includes("entretenimento");
+          }
+          
+          if (name.includes("operacional") || name.includes("informação") || name.includes("mapa")) {
+            return playlistName.includes("operacional") || playlistName.includes("informação");
+          }
+          
+          if (name.includes("cardápio") || name.includes("menu") || name.includes("lanchonete") || name.includes("restaurante")) {
+            return playlistName.includes("cardápio") || playlistName.includes("menu");
+          }
+          
+          if (name.includes("quarto") || name.includes("hóspede") || name.includes("hospede") || name.includes("hotel")) {
+            return playlistName.includes("bem-vindo") || playlistName.includes("hóspede") || playlistName.includes("hospede");
+          }
+          
+          if (name.includes("totem") || name.includes("vertical")) {
+            return playlistName.includes("totem") || playlistName.includes("vertical");
+          }
+          
+          return false;
+        });
+
+        // Se não encontrou correspondência específica, usar a primeira playlist disponível
+        return matchingPlaylist || allPlaylists[0];
+      };
+
+      let updatedCount = 0;
+
+      // Atualizar cada tela com a playlist apropriada
+      for (const screen of allScreens) {
+        const targetPlaylist = screenPlaylistMapping(screen.name);
+        
+        if (targetPlaylist && screen.assigned_playlist !== targetPlaylist.id) {
+          const { error: updateError } = await supabase
+            .from("screens")
+            .update({ assigned_playlist: targetPlaylist.id })
+            .eq("id", screen.id);
+
+          if (updateError) throw updateError;
+          updatedCount++;
         }
-      });
+      }
 
-      // Atualizar as telas com as playlists atribuídas
-      const updates = Object.entries(screenPlaylistMapping).map(([screenId, playlistId]) => 
-        supabase.from("screens").update({ assigned_playlist: playlistId }).eq("id", screenId)
-      );
+      if (updatedCount > 0) {
+        toast.success(`${updatedCount} tela(s) associada(s) com playlists automaticamente!`);
+        fetchData();
+      } else {
+        toast.info("Todas as telas já estão associadas com playlists apropriadas");
+      }
 
-      await Promise.all(updates);
-
-      toast.success("Playlists atribuídas com sucesso a todas as telas!");
-      fetchData();
     } catch (error) {
-      console.error("Error assigning playlists:", error);
-      toast.error(error instanceof Error ? error.message : "Erro ao atribuir playlists");
+      console.error("Error auto-assigning playlists:", error);
+      toast.error(error instanceof Error ? error.message : "Erro ao associar playlists às telas");
     }
   };
 
@@ -249,24 +347,6 @@ const Screens = () => {
           </div>
 
           <div className="flex gap-2">
-            <Button 
-              onClick={handleCreateAllScreens}
-              variant="outline"
-              className="border-primary/20 hover:bg-primary/10"
-            >
-              <Tv2 className="mr-2 h-4 w-4" />
-              Criar Todas as Telas
-            </Button>
-            
-            <Button 
-              onClick={handleAssignAllPlaylists}
-              variant="outline"
-              className="border-accent/20 hover:bg-accent/10"
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Atribuir Playlists
-            </Button>
-            
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="bg-gradient-to-r from-primary to-accent hover:opacity-90">
