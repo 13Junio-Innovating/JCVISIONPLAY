@@ -17,7 +17,8 @@ interface MediaFile {
   url: string;
   type: string;
   duration: number;
-  rotation: number;
+  rotation?: number; // Tornando opcional já que pode não existir no banco
+  uploaded_by: string; // Adicionando campo que vem do banco
   created_at: string;
 }
 
@@ -111,9 +112,9 @@ const Media = () => {
       setDialogOpen(false);
       fetchMedia();
       (e.target as HTMLFormElement).reset();
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error uploading:", error);
-      toast.error(error.message || "Erro ao enviar mídia");
+      toast.error(error instanceof Error ? error.message : "Erro ao enviar mídia");
     } finally {
       setUploading(false);
       setUploadProgress(0);
@@ -266,14 +267,12 @@ const Media = () => {
                     <img
                       src={media.url}
                       alt={media.name}
-                      className="w-full h-full object-cover"
-                      style={{ transform: `rotate(${media.rotation}deg)` }}
+                      className={`w-full h-full object-cover ${media.rotation ? `rotate-${media.rotation}` : ''}`}
                     />
                   ) : (
                     <video
                       src={media.url}
-                      className="w-full h-full object-cover"
-                      style={{ transform: `rotate(${media.rotation}deg)` }}
+                      className={`w-full h-full object-cover ${media.rotation ? `rotate-${media.rotation}` : ''}`}
                       muted
                     />
                   )}
@@ -295,10 +294,10 @@ const Media = () => {
                           <Clock className="h-3 w-3" />
                           {media.duration}s
                         </p>
-                        {media.rotation > 0 && (
+                        {(media.rotation || 0) > 0 && (
                           <p className="text-sm text-muted-foreground flex items-center gap-1">
                             <RotateCw className="h-3 w-3" />
-                            {media.rotation}°
+                            {media.rotation || 0}°
                           </p>
                         )}
                       </div>
