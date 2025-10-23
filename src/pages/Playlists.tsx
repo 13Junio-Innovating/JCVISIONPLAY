@@ -128,7 +128,7 @@ const Playlists = () => {
         { 
           playlist_name: playlistName,
           media_count: selectedMedia.length,
-          media_items: selectedMedia.map(item => item.mediaId)
+          media_items: selectedMedia.map(item => item.mediaId).join(',')
         }
       );
 
