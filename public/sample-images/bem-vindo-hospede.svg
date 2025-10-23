@@ -1,0 +1,63 @@
+<svg width="1920" height="1080" viewBox="0 0 1920 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg4" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#a8edea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#fed6e3;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1920" height="1080" fill="url(#bg4)"/>
+  
+  <!-- Decorative elements -->
+  <path d="M100,200 Q150,150 200,200 T300,200" stroke="rgba(255,255,255,0.3)" stroke-width="4" fill="none"/>
+  <path d="M1620,880 Q1670,830 1720,880 T1820,880" stroke="rgba(255,255,255,0.3)" stroke-width="4" fill="none"/>
+  
+  <!-- Main content -->
+  <rect x="160" y="300" width="1600" height="480" rx="20" fill="rgba(255,255,255,0.95)" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
+  
+  <!-- Title -->
+  <text x="960" y="420" text-anchor="middle" fill="#2d3748" font-family="Arial, sans-serif" font-size="72" font-weight="bold">
+    BEM-VINDO HÓSPEDE
+  </text>
+  
+  <!-- Subtitle -->
+  <text x="960" y="500" text-anchor="middle" fill="#4a5568" font-family="Arial, sans-serif" font-size="36">
+    Informações e serviços do hotel para quartos
+  </text>
+  
+  <!-- Icons -->
+  <g transform="translate(400, 550)">
+    <!-- Hotel icon -->
+    <circle cx="0" cy="0" r="40" fill="#a8edea"/>
+    <rect x="-20" y="-15" width="40" height="30" rx="2" fill="white"/>
+    <rect x="-15" y="-10" width="8" height="8" fill="#a8edea"/>
+    <rect x="-2" y="-10" width="8" height="8" fill="#a8edea"/>
+    <rect x="9" y="-10" width="8" height="8" fill="#a8edea"/>
+    <rect x="-15" y="2" width="8" height="8" fill="#a8edea"/>
+    <rect x="-2" y="2" width="8" height="8" fill="#a8edea"/>
+    <rect x="9" y="2" width="8" height="8" fill="#a8edea"/>
+  </g>
+  
+  <g transform="translate(960, 550)">
+    <!-- Service bell icon -->
+    <circle cx="0" cy="0" r="40" fill="#fed6e3"/>
+    <path d="M-20,5 Q-20,-10 0,-15 Q20,-10 20,5 Z" fill="white"/>
+    <rect x="-25" y="5" width="50" height="8" rx="4" fill="white"/>
+    <circle cx="0" cy="-15" r="3" fill="#fed6e3"/>
+  </g>
+  
+  <g transform="translate(1520, 550)">
+    <!-- Key icon -->
+    <circle cx="0" cy="0" r="40" fill="#d299c2"/>
+    <circle cx="-8" cy="0" r="8" fill="white"/>
+    <rect x="0" y="-2" width="15" height="4" fill="white"/>
+    <rect x="12" y="-6" width="3" height="4" fill="white"/>
+    <rect x="12" y="2" width="3" height="4" fill="white"/>
+  </g>
+  
+  <!-- Bottom text -->
+  <text x="960" y="720" text-anchor="middle" fill="#718096" font-family="Arial, sans-serif" font-size="24">
+    Serviços do hotel • Wi-Fi • Room service • Informações úteis
+  </text>
+</svg>

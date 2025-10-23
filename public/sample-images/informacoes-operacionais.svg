@@ -1,0 +1,58 @@
+<svg width="1920" height="1080" viewBox="0 0 1920 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4facfe;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#00f2fe;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1920" height="1080" fill="url(#bg2)"/>
+  
+  <!-- Decorative elements -->
+  <rect x="100" y="100" width="80" height="80" rx="10" fill="rgba(255,255,255,0.1)" transform="rotate(45 140 140)"/>
+  <rect x="1740" y="900" width="60" height="60" rx="8" fill="rgba(255,255,255,0.1)" transform="rotate(30 1770 930)"/>
+  
+  <!-- Main content -->
+  <rect x="160" y="300" width="1600" height="480" rx="20" fill="rgba(255,255,255,0.95)" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
+  
+  <!-- Title -->
+  <text x="960" y="420" text-anchor="middle" fill="#2d3748" font-family="Arial, sans-serif" font-size="72" font-weight="bold">
+    INFORMAÇÕES OPERACIONAIS
+  </text>
+  
+  <!-- Subtitle -->
+  <text x="960" y="500" text-anchor="middle" fill="#4a5568" font-family="Arial, sans-serif" font-size="36">
+    Instruções, mapas e informações importantes
+  </text>
+  
+  <!-- Icons -->
+  <g transform="translate(400, 550)">
+    <!-- Info icon -->
+    <circle cx="0" cy="0" r="40" fill="#4facfe"/>
+    <circle cx="0" cy="-15" r="4" fill="white"/>
+    <rect x="-3" y="-5" width="6" height="25" rx="3" fill="white"/>
+  </g>
+  
+  <g transform="translate(960, 550)">
+    <!-- Map icon -->
+    <circle cx="0" cy="0" r="40" fill="#00f2fe"/>
+    <rect x="-20" y="-15" width="40" height="30" rx="3" fill="white"/>
+    <circle cx="-8" cy="-5" r="3" fill="#4facfe"/>
+    <path d="M-8,-5 L8,5" stroke="#4facfe" stroke-width="2"/>
+    <circle cx="8" cy="5" r="3" fill="#00f2fe"/>
+  </g>
+  
+  <g transform="translate(1520, 550)">
+    <!-- Clock icon -->
+    <circle cx="0" cy="0" r="40" fill="#0093e9"/>
+    <circle cx="0" cy="0" r="25" fill="white"/>
+    <line x1="0" y1="0" x2="0" y2="-15" stroke="#4facfe" stroke-width="3" stroke-linecap="round"/>
+    <line x1="0" y1="0" x2="10" y2="0" stroke="#4facfe" stroke-width="2" stroke-linecap="round"/>
+  </g>
+  
+  <!-- Bottom text -->
+  <text x="960" y="720" text-anchor="middle" fill="#718096" font-family="Arial, sans-serif" font-size="24">
+    Horários de funcionamento • Mapas do local • Instruções importantes
+  </text>
+</svg>
