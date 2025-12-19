@@ -238,7 +238,7 @@ const Media = () => {
               <DialogHeader>
                 <DialogTitle>Enviar Mídia</DialogTitle>
                 <DialogDescription>
-                  Faça upload de imagens ou vídeos (máx. 500MB)
+                  Faça upload de imagens ou vídeos (máx. 1GB)
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleUpload} className="space-y-4">
