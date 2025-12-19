@@ -1,4 +1,4 @@
-# Display Forge
+# JC VISION PLAY
 
 Sistema completo de sinalização digital para hotéis e estabelecimentos comerciais, desenvolvido com React, TypeScript e Supabase.
 
