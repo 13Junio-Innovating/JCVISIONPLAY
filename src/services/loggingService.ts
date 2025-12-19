@@ -258,7 +258,7 @@ class LoggingService {
         .gte('created_at', weekAgo.toISOString());
 
       if (activitiesError) {
-        console.error('Erro ao obter estatísticas de logs:', activitiesError);
+        console.error('Erro ao obter estatísticas de logs (atividades):', activitiesError);
         return null;
       }
 
@@ -274,7 +274,7 @@ class LoggingService {
         .gte('created_at', weekAgo.toISOString());
 
       if (errorsError) {
-        console.error('Erro ao obter estatísticas de logs:', errorsError);
+        console.error('Erro ao obter estatísticas de logs (erros):', errorsError);
         return null;
       }
 
@@ -291,11 +291,6 @@ class LoggingService {
         errors_week,
         unresolved_errors,
       };
-
-      if (error) {
-        console.error('Erro ao obter estatísticas de logs:', error);
-        return null;
-      }
 
       return data as LogsStats;
     } catch (error) {
