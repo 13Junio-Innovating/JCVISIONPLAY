@@ -136,7 +136,7 @@ class LoggingService {
     return window.location.href;
   }
 
-  private getCurrentUserId(): string | null {
+  private async getCurrentUserId(): Promise<string | null> {
     return supabase.auth.getUser().then(({ data }) => data.user?.id || null).catch(() => null);
   }
 
@@ -269,7 +269,7 @@ class LoggingService {
 
       // Contar erros
       const { data: errorLogs, error: errorsError } = await supabase
-        .from('error_logs')
+        .from('error_logs' as any)
         .select('created_at, resolved')
         .gte('created_at', weekAgo.toISOString());
 
