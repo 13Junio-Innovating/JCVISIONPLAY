@@ -115,7 +115,7 @@ const Login = () => {
             <Monitor className="w-8 h-8 text-white" />
           </div>
           <CardTitle className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            JUNINHO PLAY
+            JC VISION PLAY
           </CardTitle>
           <CardDescription className="text-muted-foreground">
             Gerencie seus painéis digitais de forma simples

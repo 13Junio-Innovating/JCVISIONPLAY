@@ -107,7 +107,7 @@ const Layout = ({ children }: LayoutProps) => {
                 <Monitor className="w-5 h-5 text-white" />
               </div>
               <span className="font-bold text-xl bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                JUNINHO PLAY
+                JC VISION PLAY
               </span>
             </div>
           </div>
