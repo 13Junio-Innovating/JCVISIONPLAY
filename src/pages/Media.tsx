@@ -148,7 +148,17 @@ const Media = () => {
       );
       
       console.error("Error uploading:", error);
-      toast.error(error instanceof Error ? error.message : "Erro ao enviar mídia");
+      let errorMessage = "Erro ao enviar mídia";
+      
+      if (error instanceof Error) {
+        if (error.message.includes("The object exceeded the maximum allowed size")) {
+          errorMessage = "O arquivo excede o limite de tamanho permitido pelo servidor. Entre em contato com o suporte para aumentar o limite.";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setUploading(false);
       setUploadProgress(0);
