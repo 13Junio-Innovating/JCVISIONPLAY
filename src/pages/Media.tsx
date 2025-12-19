@@ -72,6 +72,12 @@ const Media = () => {
       return;
     }
 
+    if (file.size > 500 * 1024 * 1024) {
+      toast.error("O arquivo deve ter no máximo 500MB");
+      setUploading(false);
+      return;
+    }
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
@@ -222,7 +228,7 @@ const Media = () => {
               <DialogHeader>
                 <DialogTitle>Enviar Mídia</DialogTitle>
                 <DialogDescription>
-                  Faça upload de imagens ou vídeos
+                  Faça upload de imagens ou vídeos (máx. 500MB)
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleUpload} className="space-y-4">
