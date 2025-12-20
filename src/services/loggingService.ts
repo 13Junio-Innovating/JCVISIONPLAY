@@ -168,7 +168,7 @@ class LoggingService {
       };
 
       const { error } = await supabase
-        .from('user_activity_logs')
+        .from('user_activity_logs' as any)
         .insert([logData]);
 
       if (error) {
@@ -218,7 +218,7 @@ class LoggingService {
       };
 
       const { error: dbError } = await supabase
-        .from('error_logs')
+        .from('error_logs' as any)
         .insert([logData]);
 
       if (dbError) {
@@ -252,7 +252,7 @@ class LoggingService {
       weekAgo.setDate(weekAgo.getDate() - 7);
 
       // Contar atividades do usuário
-      const { data: userActivities, error: activitiesError } = await supabase
+      const { data: userActivitiesData, error: activitiesError } = await supabase
         .from('user_activity_logs' as any)
         .select('created_at')
         .gte('created_at', weekAgo.toISOString());
@@ -262,13 +262,15 @@ class LoggingService {
         return null;
       }
 
+      const userActivities = (userActivitiesData || []) as unknown as UserActivityLog[];
+
       const user_activities_today = userActivities.filter(
         (log: UserActivityLog) => new Date(log.created_at!) >= today
       ).length;
       const user_activities_week = userActivities.length;
 
       // Contar erros
-      const { data: errorLogs, error: errorsError } = await supabase
+      const { data: errorLogsData, error: errorsError } = await supabase
         .from('error_logs' as any)
         .select('created_at, resolved')
         .gte('created_at', weekAgo.toISOString());
@@ -277,6 +279,8 @@ class LoggingService {
         console.error('Erro ao obter estatísticas de logs (erros):', errorsError);
         return null;
       }
+
+      const errorLogs = (errorLogsData || []) as unknown as ErrorLog[];
 
       const errors_today = errorLogs.filter(
         (log: ErrorLog) => new Date(log.created_at!) >= today
@@ -311,7 +315,7 @@ class LoggingService {
       }
 
       const { data, error } = await supabase
-        .from('user_activity_logs')
+        .from('user_activity_logs' as any)
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
@@ -322,7 +326,7 @@ class LoggingService {
         return [];
       }
 
-      return data || [];
+      return (data || []) as unknown as UserActivityLog[];
     } catch (error) {
       console.error('Erro ao obter logs de atividades:', error);
       return [];
@@ -341,7 +345,7 @@ class LoggingService {
       }
 
       const { data, error } = await supabase
-        .from('error_logs')
+        .from('error_logs' as any)
         .select('*')
         .or(`user_id.eq.${user.id},user_id.is.null`)
         .order('created_at', { ascending: false })
@@ -352,7 +356,7 @@ class LoggingService {
         return [];
       }
 
-      return data || [];
+      return (data || []) as unknown as ErrorLog[];
     } catch (error) {
       console.error('Erro ao obter logs de erros:', error);
       return [];
@@ -365,7 +369,7 @@ class LoggingService {
   async resolveError(errorId: string): Promise<boolean> {
     try {
       const { error } = await supabase
-        .from('error_logs')
+        .from('error_logs' as any)
         .update({ resolved: true })
         .eq('id', errorId);
 
@@ -410,7 +414,7 @@ class LoggingService {
       const userActivities = JSON.parse(localStorage.getItem('fallback_user_activities') || '[]') as UserActivityLog[];
       if (userActivities.length > 0) {
         const { error } = await supabase
-          .from('user_activity_logs')
+          .from('user_activity_logs' as any)
           .insert(userActivities);
         
         if (!error) {
@@ -422,7 +426,7 @@ class LoggingService {
       const errorLogs = JSON.parse(localStorage.getItem('fallback_error_logs') || '[]') as ErrorLog[];
       if (errorLogs.length > 0) {
         const { error } = await supabase
-          .from('error_logs')
+          .from('error_logs' as any)
           .insert(errorLogs);
         
         if (!error) {

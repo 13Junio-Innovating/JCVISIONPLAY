@@ -193,12 +193,13 @@ const Player = () => {
       setMediaFiles(newMediaFiles);
       setError(null);
 
-      // Pré-carregar mídias no cache
-      await MediaCache.preloadPlaylistMedia(newMediaFiles);
+      // Pré-carregar mídias no cache (apenas arquivos)
+      const filesToCache = newMediaFiles.filter(m => m.type !== 'external');
+      await MediaCache.preloadPlaylistMedia(filesToCache);
       
       // Criar URLs em cache para uso offline
       const newCachedUrls: { [mediaId: string]: string } = {};
-      for (const media of newMediaFiles) {
+      for (const media of filesToCache) {
         const cachedUrl = await MediaCache.getCachedMediaUrl(media.url);
         if (cachedUrl) {
           newCachedUrls[media.id] = cachedUrl;
@@ -263,6 +264,32 @@ const Player = () => {
     return media;
   };
 
+  const isExternalUrl = (url: string) => {
+    return url.includes('youtube.com') || 
+           url.includes('youtu.be') || 
+           url.includes('drive.google.com') || 
+           url.includes('vimeo.com');
+  };
+
+  const getEmbedUrl = (url: string) => {
+    if (url.includes('youtube.com') || url.includes('youtu.be')) {
+      const videoId = url.match(/(?:youtu\.be\/|youtube\.com(?:\/embed\/|\/v\/|\/watch\?v=|\/user\/\S+|\/ytscreeningroom\?v=))([\w\-]{10,12})\b/)?.[1];
+      if (videoId) {
+        return `https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&mute=1&loop=1&playlist=${videoId}`;
+      }
+    }
+    if (url.includes('drive.google.com')) {
+      return url.replace('/view', '/preview');
+    }
+    if (url.includes('vimeo.com')) {
+      const videoId = url.match(/vimeo\.com\/(\d+)/)?.[1];
+      if (videoId) {
+        return `https://player.vimeo.com/video/${videoId}?autoplay=1&muted=1&loop=1&background=1`;
+      }
+    }
+    return url;
+  };
+
   const currentMedia = getCurrentMedia();
 
   if (error) {
@@ -318,6 +345,14 @@ const Player = () => {
           src={currentMedia.url}
           alt={currentMedia.name}
           className="w-full h-full object-cover animate-in fade-in duration-1000"
+        />
+      ) : (currentMedia.type === "external" || isExternalUrl(currentMedia.url)) ? (
+        <iframe
+          key={currentMedia.id}
+          src={getEmbedUrl(currentMedia.url)}
+          className="w-full h-full border-0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
         />
       ) : (
         <video

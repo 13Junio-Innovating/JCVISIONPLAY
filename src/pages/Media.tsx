@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Upload, Trash2, Image as ImageIcon, Video, Clock, RotateCw } from "lucide-react";
+import { Upload, Trash2, Image as ImageIcon, Video, Clock, RotateCw, Link as LinkIcon } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { loggingService } from "@/services/loggingService";
 
 interface MediaFile {
@@ -18,8 +19,8 @@ interface MediaFile {
   url: string;
   type: string;
   duration: number;
-  rotation?: number; // Tornando opcional já que pode não existir no banco
-  uploaded_by: string; // Adicionando campo que vem do banco
+  rotation?: number;
+  uploaded_by: string;
   created_at: string;
 }
 
@@ -86,7 +87,6 @@ const Media = () => {
       const fileName = `${user.id}/${Date.now()}.${fileExt}`;
       const fileType = file.type.startsWith("video") ? "video" : "image";
 
-      // Simular progresso do upload
       const progressInterval = setInterval(() => {
         setUploadProgress((prev) => Math.min(prev + 10, 90));
       }, 200);
@@ -115,11 +115,10 @@ const Media = () => {
 
       if (insertError) throw insertError;
 
-      // Log da atividade de upload de mídia
       await loggingService.logUserActivity(
         'upload_media',
         'media',
-        '', // ID será gerado pelo banco
+        '', 
         { 
           media_name: name || file.name,
           file_type: fileType,
@@ -134,7 +133,6 @@ const Media = () => {
       fetchMedia();
       (e.target as HTMLFormElement).reset();
     } catch (error) {
-      // Log do erro de upload de mídia
       await loggingService.logError(
         error instanceof Error ? error : new Error('Erro desconhecido ao fazer upload'),
         'upload_media_error',
@@ -165,25 +163,87 @@ const Media = () => {
     }
   };
 
-  const handleDelete = async (id: string, url: string) => {
+  const isExternalUrl = (url: string) => {
+    return url.includes('youtube.com') || 
+           url.includes('youtu.be') || 
+           url.includes('drive.google.com') || 
+           url.includes('vimeo.com');
+  };
+
+  const handleLinkSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setUploading(true);
+
+    const formData = new FormData(e.currentTarget);
+    const name = formData.get("name") as string;
+    const url = formData.get("url") as string;
+    const duration = parseInt(formData.get("duration") as string) || 10;
+    const rotation = parseInt(formData.get("rotation") as string) || 0;
+
+    if (!url) {
+      toast.error("Informe a URL");
+      setUploading(false);
+      return;
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado");
+
+      const { error: insertError } = await supabase.from("media").insert({
+        name: name || url,
+        url: url,
+        type: "video", // Salvando como 'video' para contornar restrição temporária do banco
+        duration,
+        rotation,
+        uploaded_by: user.id,
+      });
+
+      if (insertError) throw insertError;
+
+      await loggingService.logUserActivity(
+        'add_external_media',
+        'media',
+        '',
+        { media_name: name || url, url, type: 'external', duration, rotation }
+      );
+
+      toast.success("Link adicionado com sucesso!");
+      setDialogOpen(false);
+      fetchMedia();
+      (e.target as HTMLFormElement).reset();
+    } catch (error) {
+      await loggingService.logError(
+        error instanceof Error ? error : new Error('Erro desconhecido ao adicionar link'),
+        'add_external_media_error',
+        { media_name: name || url, url, attempted_action: 'add_external_media' },
+        'medium'
+      );
+      console.error("Error adding link:", error);
+      toast.error("Erro ao adicionar link");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async (id: string, url: string, type: string) => {
     if (!confirm("Deseja realmente excluir esta mídia?")) return;
 
     try {
-      // Buscar informações da mídia antes de excluir para o log
       const { data: mediaData } = await supabase
         .from("media")
         .select("name, type, duration")
         .eq("id", id)
         .single();
 
-      // Extract file path from URL
-      const urlParts = url.split("/");
-      const filePath = urlParts.slice(-2).join("/");
-
-      await supabase.storage.from("media").remove([filePath]);
+      if (type !== 'external' && !isExternalUrl(url)) {
+        const urlParts = url.split("/");
+        const filePath = urlParts.slice(-2).join("/");
+        await supabase.storage.from("media").remove([filePath]);
+      }
+      
       await supabase.from("media").delete().eq("id", id);
 
-      // Log da atividade de exclusão de mídia
       await loggingService.logUserActivity(
         'delete_media',
         'media',
@@ -198,17 +258,12 @@ const Media = () => {
       toast.success("Mídia excluída com sucesso!");
       fetchMedia();
     } catch (error) {
-      // Log do erro de exclusão de mídia
       await loggingService.logError(
         error instanceof Error ? error : new Error('Erro desconhecido ao excluir mídia'),
         'delete_media_error',
-        { 
-          media_id: id,
-          attempted_action: 'delete_media'
-        },
+        { media_id: id, attempted_action: 'delete_media' },
         'medium'
       );
-      
       console.error("Error deleting:", error);
       toast.error("Erro ao excluir mídia");
     }
@@ -223,7 +278,7 @@ const Media = () => {
               Mídias
             </h1>
             <p className="text-muted-foreground">
-              Gerencie imagens e vídeos para suas telas
+              Gerencie imagens, vídeos e links externos para suas telas
             </p>
           </div>
 
@@ -231,79 +286,147 @@ const Media = () => {
             <DialogTrigger asChild>
               <Button className="bg-gradient-to-r from-primary to-accent hover:opacity-90">
                 <Upload className="mr-2 h-4 w-4" />
-                Upload
+                Adicionar Mídia
               </Button>
             </DialogTrigger>
             <DialogContent className="bg-card/95 backdrop-blur-xl border-border/50">
               <DialogHeader>
-                <DialogTitle>Enviar Mídia</DialogTitle>
+                <DialogTitle>Adicionar Mídia</DialogTitle>
                 <DialogDescription>
-                  Faça upload de imagens ou vídeos (máx. 1GB)
+                  Faça upload de arquivos ou adicione links externos (YouTube, Drive, etc.)
                 </DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleUpload} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="file">Arquivo</Label>
-                  <Input
-                    id="file"
-                    name="file"
-                    type="file"
-                    accept="image/*,video/*"
-                    required
-                    className="bg-secondary/50"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="name">Nome (opcional)</Label>
-                  <Input
-                    id="name"
-                    name="name"
-                    type="text"
-                    placeholder="Nome da mídia"
-                    className="bg-secondary/50"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="duration">Duração de exibição (segundos)</Label>
-                  <Input
-                    id="duration"
-                    name="duration"
-                    type="number"
-                    defaultValue={10}
-                    min={1}
-                    className="bg-secondary/50"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="rotation">Rotação da tela</Label>
-                  <Select name="rotation" defaultValue="0">
-                    <SelectTrigger className="bg-secondary/50">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="0">Normal (0°)</SelectItem>
-                      <SelectItem value="90">90° (Horário)</SelectItem>
-                      <SelectItem value="180">180° (Invertido)</SelectItem>
-                      <SelectItem value="270">270° (Anti-horário)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {uploading && (
-                  <div className="space-y-2">
-                    <Progress value={uploadProgress} />
-                    <p className="text-sm text-muted-foreground text-center">
-                      Enviando... {uploadProgress}%
-                    </p>
-                  </div>
-                )}
-                <Button
-                  type="submit"
-                  className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90"
-                  disabled={uploading}
-                >
-                  {uploading ? "Enviando..." : "Enviar"}
-                </Button>
-              </form>
+
+              <Tabs defaultValue="upload" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 mb-4">
+                  <TabsTrigger value="upload">Upload de Arquivo</TabsTrigger>
+                  <TabsTrigger value="link">Link Externo</TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="upload">
+                  <form onSubmit={handleUpload} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="file">Arquivo</Label>
+                      <Input
+                        id="file"
+                        name="file"
+                        type="file"
+                        accept="image/*,video/*"
+                        required
+                        className="bg-secondary/50"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Nome (opcional)</Label>
+                      <Input
+                        id="name"
+                        name="name"
+                        type="text"
+                        placeholder="Nome da mídia"
+                        className="bg-secondary/50"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="duration">Duração de exibição (segundos)</Label>
+                      <Input
+                        id="duration"
+                        name="duration"
+                        type="number"
+                        defaultValue={10}
+                        min={1}
+                        className="bg-secondary/50"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="rotation">Rotação da tela</Label>
+                      <Select name="rotation" defaultValue="0">
+                        <SelectTrigger className="bg-secondary/50">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">Normal (0°)</SelectItem>
+                          <SelectItem value="90">90° (Horário)</SelectItem>
+                          <SelectItem value="180">180° (Invertido)</SelectItem>
+                          <SelectItem value="270">270° (Anti-horário)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {uploading && (
+                      <div className="space-y-2">
+                        <Progress value={uploadProgress} />
+                        <p className="text-sm text-muted-foreground text-center">
+                          Enviando... {uploadProgress}%
+                        </p>
+                      </div>
+                    )}
+                    <Button
+                      type="submit"
+                      className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90"
+                      disabled={uploading}
+                    >
+                      {uploading ? "Enviando..." : "Enviar Arquivo"}
+                    </Button>
+                  </form>
+                </TabsContent>
+
+                <TabsContent value="link">
+                  <form onSubmit={handleLinkSubmit} className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="link-url">URL da Mídia</Label>
+                      <Input
+                        id="link-url"
+                        name="url"
+                        type="url"
+                        placeholder="https://youtube.com/..., https://drive.google.com/..."
+                        required
+                        className="bg-secondary/50"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="link-name">Nome (opcional)</Label>
+                      <Input
+                        id="link-name"
+                        name="name"
+                        type="text"
+                        placeholder="Nome da mídia"
+                        className="bg-secondary/50"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="link-duration">Duração de exibição (segundos)</Label>
+                      <Input
+                        id="link-duration"
+                        name="duration"
+                        type="number"
+                        defaultValue={10}
+                        min={1}
+                        className="bg-secondary/50"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="link-rotation">Rotação da tela</Label>
+                      <Select name="rotation" defaultValue="0">
+                        <SelectTrigger className="bg-secondary/50">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">Normal (0°)</SelectItem>
+                          <SelectItem value="90">90° (Horário)</SelectItem>
+                          <SelectItem value="180">180° (Invertido)</SelectItem>
+                          <SelectItem value="270">270° (Anti-horário)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      type="submit"
+                      className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90"
+                      disabled={uploading}
+                    >
+                      {uploading ? "Adicionando..." : "Adicionar Link"}
+                    </Button>
+                  </form>
+                </TabsContent>
+              </Tabs>
             </DialogContent>
           </Dialog>
         </div>
@@ -325,7 +448,7 @@ const Media = () => {
               <ImageIcon className="h-16 w-16 text-muted-foreground mb-4" />
               <p className="text-lg font-semibold mb-2">Nenhuma mídia encontrada</p>
               <p className="text-muted-foreground text-center mb-4">
-                Comece enviando imagens e vídeos para usar em suas playlists
+                Comece enviando imagens e vídeos ou adicionando links para usar em suas playlists
               </p>
             </CardContent>
           </Card>
@@ -337,26 +460,38 @@ const Media = () => {
                 className="border-border/50 bg-card/50 backdrop-blur-xl hover:shadow-glow transition-all group"
               >
                 <div className="aspect-video bg-secondary/50 overflow-hidden rounded-t-xl relative">
-                  {media.type === "image" ? (
+                  {isExternalUrl(media.url) ? (
+                    <div className="w-full h-full flex items-center justify-center bg-black/20">
+                      <LinkIcon className="h-16 w-16 text-muted-foreground/50" />
+                    </div>
+                  ) : media.type === "image" ? (
                     <img
                       src={media.url}
                       alt={media.name}
                       className={`w-full h-full object-cover ${media.rotation ? `rotate-${media.rotation}` : ''}`}
                     />
-                  ) : (
+                  ) : media.type === "video" ? (
                     <video
                       src={media.url}
                       className={`w-full h-full object-cover ${media.rotation ? `rotate-${media.rotation}` : ''}`}
                       muted
                     />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-black/20">
+                      <LinkIcon className="h-16 w-16 text-muted-foreground/50" />
+                    </div>
                   )}
                   <div className="absolute top-2 right-2 px-2 py-1 rounded-lg bg-black/60 backdrop-blur-sm flex items-center gap-1">
-                    {media.type === "image" ? (
+                    {isExternalUrl(media.url) ? (
+                      <LinkIcon className="h-3 w-3" />
+                    ) : media.type === "image" ? (
                       <ImageIcon className="h-3 w-3" />
-                    ) : (
+                    ) : media.type === "video" ? (
                       <Video className="h-3 w-3" />
+                    ) : (
+                      <LinkIcon className="h-3 w-3" />
                     )}
-                    <span className="text-xs">{media.type}</span>
+                    <span className="text-xs">{isExternalUrl(media.url) || media.type === 'external' ? 'Link' : media.type}</span>
                   </div>
                 </div>
                 <CardContent className="p-4">
@@ -379,7 +514,7 @@ const Media = () => {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => handleDelete(media.id, media.url)}
+                      onClick={() => handleDelete(media.id, media.url, media.type)}
                       className="text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
                     >
                       <Trash2 className="h-4 w-4" />
