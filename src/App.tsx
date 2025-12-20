@@ -39,6 +39,7 @@ const App = () => (
           <Route path="/playlists" element={<Playlists />} />
           <Route path="/screens" element={<Screens />} />
           <Route path="/preview/:id" element={<Preview />} />
+          <Route path="/player" element={<Player />} />
           <Route path="/player/:playerKey" element={<Player />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />

@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { MediaCache } from "@/utils/mediaCache";
 import { loggingService } from "@/services/loggingService";
+import { WifiOff, Monitor } from "lucide-react";
 
 interface MediaFile {
   id: string;
@@ -32,19 +33,37 @@ interface OfflineData {
 
 const Player = () => {
   const { playerKey } = useParams();
+  const navigate = useNavigate();
   const [playlist, setPlaylist] = useState<Playlist | null>(null);
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
   const [cachedUrls, setCachedUrls] = useState<{ [mediaId: string]: string }>({});
   const [currentIndex, setCurrentIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
+  const [isUnregistered, setIsUnregistered] = useState(false);
   const [lastOnlineTime, setLastOnlineTime] = useState<number>(Date.now());
+
+  const generatePlayerCode = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let result = '';
+    for (let i = 0; i < 6; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  };
 
   useEffect(() => {
     if (!playerKey) {
-      setError("Código do player inválido");
+      let storedKey = localStorage.getItem('player_device_key');
+      if (!storedKey) {
+        storedKey = generatePlayerCode();
+        localStorage.setItem('player_device_key', storedKey);
+      }
+      navigate(`/player/${storedKey}`, { replace: true });
       return;
     }
+
+    localStorage.setItem('player_device_key', playerKey);
 
     // Verificar se há dados offline salvos
     loadOfflineData();
@@ -66,7 +85,7 @@ const Player = () => {
       clearInterval(playlistInterval);
       clearInterval(connectionInterval);
     };
-  }, [playerKey]);
+  }, [playerKey, navigate]);
 
   const loadOfflineData = () => {
     try {
@@ -157,9 +176,35 @@ const Player = () => {
         .from("screens")
         .select("assigned_playlist")
         .eq("player_key", playerKey)
-        .single();
+        .maybeSingle();
 
       if (screenError) throw screenError;
+
+      if (!screenData) {
+        setIsUnregistered(true);
+        setError(null);
+        
+        // Inscrever para detectar quando esta tela for criada
+        const channel = supabase
+          .channel('schema-db-changes')
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'screens',
+              filter: `player_key=eq.${playerKey}`,
+            },
+            (payload) => {
+              console.log('Screen registered!', payload);
+              window.location.reload();
+            }
+          )
+          .subscribe();
+        return;
+      }
+
+      setIsUnregistered(false);
 
       if (!screenData.assigned_playlist) {
         setError("Nenhuma playlist atribuída a esta tela");
@@ -291,6 +336,34 @@ const Player = () => {
   };
 
   const currentMedia = getCurrentMedia();
+
+  if (isUnregistered) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center p-4">
+        <div className="text-center text-white max-w-md w-full">
+          <div className="mb-8">
+            <Monitor className="w-20 h-20 mx-auto text-blue-500 mb-4 animate-pulse" />
+            <h1 className="text-3xl font-bold mb-2">Vincular Dispositivo</h1>
+            <p className="text-gray-400">
+              Acesse o painel administrativo e adicione uma nova tela usando o código abaixo.
+            </p>
+          </div>
+          
+          <div className="bg-white/10 rounded-xl p-8 mb-8 backdrop-blur-lg border border-white/10">
+            <p className="text-sm text-gray-400 uppercase tracking-widest mb-2">Código de Vinculação</p>
+            <div className="text-5xl font-mono font-bold tracking-wider text-blue-400 select-all">
+              {playerKey}
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-center gap-2 text-sm text-gray-500 animate-pulse">
+            <div className="w-2 h-2 bg-blue-500 rounded-full" />
+            <span>Aguardando vinculação...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (error) {
     return (

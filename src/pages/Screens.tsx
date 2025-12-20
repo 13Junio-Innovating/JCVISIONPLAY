@@ -30,8 +30,10 @@ const Screens = () => {
   const [screens, setScreens] = useState<Screen[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [screenName, setScreenName] = useState("");
+  const [manualPlayerKey, setManualPlayerKey] = useState("");
 
   useEffect(() => {
     fetchData();
@@ -72,15 +74,23 @@ const Screens = () => {
 
   const handleCreateScreen = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
 
+    setSubmitting(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
-      const { data, error } = await supabase.from("screens").insert({
+      const payload: any = {
         name: screenName,
         created_by: user.id,
-      }).select().single();
+      };
+
+      if (manualPlayerKey.trim()) {
+        payload.player_key = manualPlayerKey.trim().toUpperCase();
+      }
+
+      const { data, error } = await supabase.from("screens").insert(payload).select().single();
 
       if (error) throw error;
 
@@ -89,14 +99,15 @@ const Screens = () => {
         'create_screen',
         'screen',
         data.id,
-        { screen_name: screenName }
+        { screen_name: screenName, player_key: data.player_key }
       );
 
       toast.success("Tela criada com sucesso!");
       setDialogOpen(false);
       setScreenName("");
+      setManualPlayerKey("");
       fetchData();
-    } catch (error) {
+    } catch (error: any) {
       // Log do erro de criação de tela
       await loggingService.logError(
         error instanceof Error ? error : new Error('Erro desconhecido ao criar tela'),
@@ -106,7 +117,13 @@ const Screens = () => {
       );
       
       console.error("Error creating screen:", error);
-      toast.error(error instanceof Error ? error.message : "Erro ao criar tela");
+      if (error.code === '23505') {
+        toast.error("Este código de tela já está em uso. Tente outro.");
+      } else {
+        toast.error(error instanceof Error ? error.message : "Erro ao criar tela");
+      }
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -373,11 +390,26 @@ const Screens = () => {
                       className="bg-secondary/50"
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="screen-code">Código de Vinculação (Opcional)</Label>
+                    <Input
+                      id="screen-code"
+                      value={manualPlayerKey}
+                      onChange={(e) => setManualPlayerKey(e.target.value.toUpperCase())}
+                      placeholder="Ex: XKY7Z2"
+                      className="bg-secondary/50 font-mono uppercase"
+                      maxLength={6}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Insira o código exibido no player para vincular, ou deixe em branco para gerar um novo.
+                    </p>
+                  </div>
                   <Button
                     type="submit"
                     className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90"
+                    disabled={submitting}
                   >
-                    Criar Tela
+                    {submitting ? "Criando..." : "Criar Tela"}
                   </Button>
                 </form>
               </DialogContent>
