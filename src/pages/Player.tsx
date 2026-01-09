@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/services/api";
 import { MediaCache } from "@/utils/mediaCache";
 import { loggingService } from "@/services/loggingService";
 import { WifiOff, Monitor } from "lucide-react";
@@ -31,6 +31,11 @@ interface OfflineData {
   lastUpdate: number;
 }
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { toast } from "sonner";
+
 const Player = () => {
   const { playerKey } = useParams();
   const navigate = useNavigate();
@@ -42,6 +47,9 @@ const Player = () => {
   const [isOffline, setIsOffline] = useState(false);
   const [isUnregistered, setIsUnregistered] = useState(false);
   const [lastOnlineTime, setLastOnlineTime] = useState<number>(Date.now());
+  const [manualCode, setManualCode] = useState("");
+  const [isManualInputOpen, setIsManualInputOpen] = useState(false);
+  const [screenId, setScreenId] = useState<string | null>(null);
 
   const generatePlayerCode = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -156,12 +164,22 @@ const Player = () => {
     if (!playerKey) return;
 
     try {
-      const { error } = await supabase
-        .from("screens")
-        .update({ last_seen: new Date().toISOString() })
-        .eq("player_key", playerKey);
+      // Se já temos o ID da tela, usamos ele
+      let currentScreenId = screenId;
 
-      if (error) throw error;
+      // Se não temos, tentamos buscar
+      if (!currentScreenId) {
+        const { data: screens } = await api.screens.list();
+        const screen = (screens || []).find((s: any) => s.player_key === playerKey);
+        if (screen) {
+          currentScreenId = screen.id;
+          setScreenId(screen.id);
+        }
+      }
+
+      if (currentScreenId) {
+        await api.screens.update(currentScreenId, { last_seen: new Date().toISOString() });
+      }
     } catch (error) {
       console.error("Error updating last_seen:", error);
     }
@@ -172,38 +190,25 @@ const Player = () => {
 
     try {
       // Buscar a tela pelo player_key
-      const { data: screenData, error: screenError } = await supabase
-        .from("screens")
-        .select("assigned_playlist")
-        .eq("player_key", playerKey)
-        .maybeSingle();
-
+      const { data: screens, error: screenError } = await api.screens.list();
+      
       if (screenError) throw screenError;
 
+      const screenData = (screens || []).find((s: any) => s.player_key === playerKey);
+
       if (!screenData) {
+        if (playerKey && playerKey.length <= 6) {
+          console.log("Tela não encontrada para chave:", playerKey);
+        }
         setIsUnregistered(true);
         setError(null);
         
-        // Inscrever para detectar quando esta tela for criada
-        const channel = supabase
-          .channel('schema-db-changes')
-          .on(
-            'postgres_changes',
-            {
-              event: 'INSERT',
-              schema: 'public',
-              table: 'screens',
-              filter: `player_key=eq.${playerKey}`,
-            },
-            (payload) => {
-              console.log('Screen registered!', payload);
-              window.location.reload();
-            }
-          )
-          .subscribe();
+        // Polling mais agressivo quando não registrado
+        // Em um ambiente sem websockets, confiamos no intervalo de atualização
         return;
       }
 
+      setScreenId(screenData.id);
       setIsUnregistered(false);
 
       if (!screenData.assigned_playlist) {
@@ -213,23 +218,19 @@ const Player = () => {
       }
 
       // Buscar a playlist
-      const { data: playlistData, error: playlistError } = await supabase
-        .from("playlists")
-        .select("*")
-        .eq("id", screenData.assigned_playlist)
-        .single();
+      const { data: playlistData, error: playlistError } = await api.playlists.get(screenData.assigned_playlist);
 
       if (playlistError) throw playlistError;
 
       // Buscar as mídias
-      const items = playlistData.items as unknown as PlaylistItem[];
-      const mediaIds = items.map((item) => item.mediaId);
-      const { data: mediaData, error: mediaError } = await supabase
-        .from("media")
-        .select("*")
-        .in("id", mediaIds);
-
+      const items = playlistData.items || [];
+      const mediaIds = items.map((item: any) => item.mediaId);
+      
+      const { data: allMedia, error: mediaError } = await api.media.list();
+      
       if (mediaError) throw mediaError;
+
+      const mediaData = (allMedia || []).filter((m: any) => mediaIds.includes(m.id));
 
       const newPlaylist = { ...playlistData, items };
       const newMediaFiles = mediaData || [];
@@ -239,7 +240,7 @@ const Player = () => {
       setError(null);
 
       // Pré-carregar mídias no cache (apenas arquivos)
-      const filesToCache = newMediaFiles.filter(m => m.type !== 'external');
+      const filesToCache = newMediaFiles.filter((m: any) => m.type !== 'external');
       await MediaCache.preloadPlaylistMedia(filesToCache);
       
       // Criar URLs em cache para uso offline
@@ -312,19 +313,15 @@ const Player = () => {
   const isExternalUrl = (url: string) => {
     return url.includes('youtube.com') || 
            url.includes('youtu.be') || 
-           url.includes('drive.google.com') || 
            url.includes('vimeo.com');
   };
 
   const getEmbedUrl = (url: string) => {
     if (url.includes('youtube.com') || url.includes('youtu.be')) {
-      const videoId = url.match(/(?:youtu\.be\/|youtube\.com(?:\/embed\/|\/v\/|\/watch\?v=|\/user\/\S+|\/ytscreeningroom\?v=))([\w\-]{10,12})\b/)?.[1];
+      const videoId = url.match(/(?:youtu\.be\/|youtube\.com(?:\/embed\/|\/v\/|\/watch\?v=|\/user\/\S+|\/ytscreeningroom\?v=))([\w-]{10,12})\b/)?.[1];
       if (videoId) {
         return `https://www.youtube.com/embed/${videoId}?autoplay=1&controls=0&mute=1&loop=1&playlist=${videoId}`;
       }
-    }
-    if (url.includes('drive.google.com')) {
-      return url.replace('/view', '/preview');
     }
     if (url.includes('vimeo.com')) {
       const videoId = url.match(/vimeo\.com\/(\d+)/)?.[1];
@@ -335,7 +332,33 @@ const Player = () => {
     return url;
   };
 
+  const getProcessedUrl = (url: string) => {
+    if (url.includes('drive.google.com')) {
+      const fileId = url.match(/\/d\/(.+?)\//)?.[1] || url.match(/id=(.+?)(&|$)/)?.[1];
+      if (fileId) {
+        return `https://drive.google.com/uc?export=download&id=${fileId}`;
+      }
+    }
+    return url;
+  };
+
   const currentMedia = getCurrentMedia();
+
+  const handleManualCodeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (manualCode.trim()) {
+      const code = manualCode.trim().toUpperCase();
+      localStorage.setItem('player_device_key', code);
+      setIsManualInputOpen(false);
+      
+      toast.success("Vinculando tela...");
+      
+      // Pequeno delay para feedback visual
+      setTimeout(() => {
+        window.location.href = `/player/${code}`;
+      }, 500);
+    }
+  };
 
   if (isUnregistered) {
     return (
@@ -345,20 +368,46 @@ const Player = () => {
             <Monitor className="w-20 h-20 mx-auto text-blue-500 mb-4 animate-pulse" />
             <h1 className="text-3xl font-bold mb-2">Vincular Dispositivo</h1>
             <p className="text-gray-400">
-              Acesse o painel administrativo e adicione uma nova tela usando o código abaixo.
+              Esta tela ainda não está vinculada.
             </p>
+            <p className="text-xs text-gray-600 mt-2">ID: {playerKey}</p>
           </div>
           
-          <div className="bg-white/10 rounded-xl p-8 mb-8 backdrop-blur-lg border border-white/10">
-            <p className="text-sm text-gray-400 uppercase tracking-widest mb-2">Código de Vinculação</p>
-            <div className="text-5xl font-mono font-bold tracking-wider text-blue-400 select-all">
-              {playerKey}
+          <div className="flex flex-col items-center justify-center gap-6">
+            <Dialog open={isManualInputOpen} onOpenChange={setIsManualInputOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="bg-white/10 border-white/20 hover:bg-white/20 text-white px-8 py-6 h-auto text-lg">
+                  Inserir Código de Vinculação
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-zinc-900 border-zinc-800 text-white">
+                <DialogHeader>
+                  <DialogTitle>Vincular Tela</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleManualCodeSubmit} className="space-y-4 pt-4">
+                  <div className="space-y-2">
+                    <p className="text-sm text-gray-400">
+                      Digite o código definido no painel administrativo para esta tela.
+                    </p>
+                    <Input
+                      value={manualCode}
+                      onChange={(e) => setManualCode(e.target.value.toUpperCase())}
+                      placeholder="EX: A1B2C3"
+                      className="bg-zinc-800 border-zinc-700 text-white font-mono uppercase text-center text-lg tracking-widest"
+                      maxLength={6}
+                    />
+                  </div>
+                  <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700">
+                    Vincular e Iniciar
+                  </Button>
+                </form>
+              </DialogContent>
+            </Dialog>
+            
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" />
+              <span>Aguardando configuração...</span>
             </div>
-          </div>
-          
-          <div className="flex items-center justify-center gap-2 text-sm text-gray-500 animate-pulse">
-            <div className="w-2 h-2 bg-blue-500 rounded-full" />
-            <span>Aguardando vinculação...</span>
           </div>
         </div>
       </div>
@@ -419,7 +468,7 @@ const Player = () => {
           alt={currentMedia.name}
           className="w-full h-full object-cover animate-in fade-in duration-1000"
         />
-      ) : (currentMedia.type === "external" || isExternalUrl(currentMedia.url)) ? (
+      ) : (currentMedia.type === "external" || isExternalUrl(currentMedia.url)) && !currentMedia.url.includes('drive.google.com') ? (
         <iframe
           key={currentMedia.id}
           src={getEmbedUrl(currentMedia.url)}
@@ -430,11 +479,12 @@ const Player = () => {
       ) : (
         <video
           key={currentMedia.id}
-          src={currentMedia.url}
+          src={getProcessedUrl(currentMedia.url)}
           className="w-full h-full object-cover"
           autoPlay
           muted
           loop
+          playsInline
         />
       )}
     </div>

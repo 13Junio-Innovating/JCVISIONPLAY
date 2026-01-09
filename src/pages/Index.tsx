@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { Monitor, PlaySquare, Image, Tv2 } from "lucide-react";
+import { api } from "@/services/api";
+import { PlaySquare, Image, Tv2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const Index = () => {
@@ -9,7 +9,7 @@ const Index = () => {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = api.auth.getSession();
       if (session) {
         navigate("/dashboard");
       }
@@ -22,11 +22,11 @@ const Index = () => {
       <div className="container mx-auto px-4 py-16">
         {/* Hero Section */}
         <div className="text-center max-w-4xl mx-auto mb-16">
-          <div className="inline-flex items-center justify-center w-24 h-24 rounded-3xl bg-gradient-to-br from-primary to-accent mb-8 shadow-glow">
-            <Monitor className="w-12 h-12 text-white" />
+          <div className="mx-auto w-32 h-32 flex items-center justify-center mb-8">
+            <img src="/logo.png" alt="Logo Costão" className="w-full h-full object-contain" />
           </div>
           <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-primary via-primary-glow to-accent bg-clip-text text-transparent">
-            JC VISION PLAY
+            COSTAO VISION PLAY
           </h1>
           <p className="text-xl md:text-2xl text-muted-foreground mb-8">
             Gerencie seus painéis digitais de forma simples e profissional

@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { api } from './api';
 
 // Tipos específicos para detalhes de atividades
 export interface LoginDetails {
@@ -136,9 +136,6 @@ class LoggingService {
     return window.location.href;
   }
 
-  private async getCurrentUserId(): Promise<string | null> {
-    return supabase.auth.getUser().then(({ data }) => data.user?.id || null).catch(() => null);
-  }
 
   /**
    * Registra uma atividade do usuário
@@ -150,15 +147,15 @@ class LoggingService {
     details?: ActivityDetails
   ): Promise<void> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const session = api.auth.getSession();
       
-      if (!user) {
+      if (!session?.user) {
         console.warn('Tentativa de log de atividade sem usuário autenticado');
         return;
       }
 
       const logData: UserActivityLog = {
-        user_id: user.id,
+        user_id: session.user.id,
         action,
         resource,
         resource_id: resourceId,
@@ -167,15 +164,8 @@ class LoggingService {
         user_agent: this.getUserAgent(),
       };
 
-      const { error } = await supabase
-        .from('user_activity_logs' as any)
-        .insert([logData]);
+      await api.logs.logActivity(logData);
 
-      if (error) {
-        console.error('Erro ao registrar atividade do usuário:', error);
-        // Fallback: salvar no localStorage se falhar no banco
-        this.saveToLocalStorage('user_activities', logData);
-      }
     } catch (error) {
       console.error('Erro ao registrar atividade do usuário:', error);
       // Fallback: salvar no localStorage
@@ -199,13 +189,13 @@ class LoggingService {
     severity: 'low' | 'medium' | 'high' | 'critical' = 'medium'
   ): Promise<void> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const session = api.auth.getSession();
       
       const errorMessage = typeof error === 'string' ? error : error.message;
       const stackTrace = typeof error === 'object' && error.stack ? error.stack : undefined;
 
       const logData: ErrorLog = {
-        user_id: user?.id || null,
+        user_id: session?.user?.id || null,
         error_type: errorType,
         error_message: errorMessage,
         stack_trace: stackTrace,
@@ -217,15 +207,8 @@ class LoggingService {
         resolved: false,
       };
 
-      const { error: dbError } = await supabase
-        .from('error_logs' as any)
-        .insert([logData]);
+      await api.logs.logError(logData);
 
-      if (dbError) {
-        console.error('Erro ao registrar erro no banco:', dbError);
-        // Fallback: salvar no localStorage se falhar no banco
-        this.saveToLocalStorage('error_logs', logData);
-      }
     } catch (logError) {
       console.error('Erro ao registrar erro:', logError);
       // Fallback: salvar no localStorage
@@ -245,57 +228,7 @@ class LoggingService {
    */
   async getLogsStats(): Promise<LogsStats | null> {
     try {
-      // Como o Supabase não reconhece 'get_logs_stats', vamos calcular as estatísticas localmente
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const weekAgo = new Date(today);
-      weekAgo.setDate(weekAgo.getDate() - 7);
-
-      // Contar atividades do usuário
-      const { data: userActivitiesData, error: activitiesError } = await supabase
-        .from('user_activity_logs' as any)
-        .select('created_at')
-        .gte('created_at', weekAgo.toISOString());
-
-      if (activitiesError) {
-        console.error('Erro ao obter estatísticas de logs (atividades):', activitiesError);
-        return null;
-      }
-
-      const userActivities = (userActivitiesData || []) as unknown as UserActivityLog[];
-
-      const user_activities_today = userActivities.filter(
-        (log: UserActivityLog) => new Date(log.created_at!) >= today
-      ).length;
-      const user_activities_week = userActivities.length;
-
-      // Contar erros
-      const { data: errorLogsData, error: errorsError } = await supabase
-        .from('error_logs' as any)
-        .select('created_at, resolved')
-        .gte('created_at', weekAgo.toISOString());
-
-      if (errorsError) {
-        console.error('Erro ao obter estatísticas de logs (erros):', errorsError);
-        return null;
-      }
-
-      const errorLogs = (errorLogsData || []) as unknown as ErrorLog[];
-
-      const errors_today = errorLogs.filter(
-        (log: ErrorLog) => new Date(log.created_at!) >= today
-      ).length;
-      const errors_week = errorLogs.length;
-      const unresolved_errors = errorLogs.filter((log: ErrorLog) => !log.resolved).length; 
-
-      const data: LogsStats = {
-        user_activities_today,
-        user_activities_week,
-        errors_today,
-        errors_week,
-        unresolved_errors,
-      };
-
+      const { data } = await api.logs.getStats();
       return data as LogsStats;
     } catch (error) {
       console.error('Erro ao obter estatísticas de logs:', error);
@@ -308,24 +241,12 @@ class LoggingService {
    */
   async getUserActivityLogs(limit: number = 50, offset: number = 0): Promise<UserActivityLog[]> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
+      const session = api.auth.getSession();
+      if (!session?.user) {
         return [];
       }
 
-      const { data, error } = await supabase
-        .from('user_activity_logs' as any)
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .range(offset, offset + limit - 1);
-
-      if (error) {
-        console.error('Erro ao obter logs de atividades:', error);
-        return [];
-      }
-
+      const { data } = await api.logs.getActivity(limit, offset, session.user.id);
       return (data || []) as unknown as UserActivityLog[];
     } catch (error) {
       console.error('Erro ao obter logs de atividades:', error);
@@ -338,24 +259,9 @@ class LoggingService {
    */
   async getErrorLogs(limit: number = 50, offset: number = 0): Promise<ErrorLog[]> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const session = api.auth.getSession();
       
-      if (!user) {
-        return [];
-      }
-
-      const { data, error } = await supabase
-        .from('error_logs' as any)
-        .select('*')
-        .or(`user_id.eq.${user.id},user_id.is.null`)
-        .order('created_at', { ascending: false })
-        .range(offset, offset + limit - 1);
-
-      if (error) {
-        console.error('Erro ao obter logs de erros:', error);
-        return [];
-      }
-
+      const { data } = await api.logs.getErrors(limit, offset, session?.user?.id);
       return (data || []) as unknown as ErrorLog[];
     } catch (error) {
       console.error('Erro ao obter logs de erros:', error);
@@ -368,16 +274,7 @@ class LoggingService {
    */
   async resolveError(errorId: string): Promise<boolean> {
     try {
-      const { error } = await supabase
-        .from('error_logs' as any)
-        .update({ resolved: true })
-        .eq('id', errorId);
-
-      if (error) {
-        console.error('Erro ao marcar erro como resolvido:', error);
-        return false;
-      }
-
+      await api.logs.resolveError(errorId);
       return true;
     } catch (error) {
       console.error('Erro ao marcar erro como resolvido:', error);
@@ -413,25 +310,19 @@ class LoggingService {
       // Sincronizar atividades de usuário
       const userActivities = JSON.parse(localStorage.getItem('fallback_user_activities') || '[]') as UserActivityLog[];
       if (userActivities.length > 0) {
-        const { error } = await supabase
-          .from('user_activity_logs' as any)
-          .insert(userActivities);
-        
-        if (!error) {
-          localStorage.removeItem('fallback_user_activities');
+        for (const log of userActivities) {
+           await api.logs.logActivity(log);
         }
+        localStorage.removeItem('fallback_user_activities');
       }
 
       // Sincronizar logs de erro
       const errorLogs = JSON.parse(localStorage.getItem('fallback_error_logs') || '[]') as ErrorLog[];
       if (errorLogs.length > 0) {
-        const { error } = await supabase
-          .from('error_logs' as any)
-          .insert(errorLogs);
-        
-        if (!error) {
-          localStorage.removeItem('fallback_error_logs');
+        for (const log of errorLogs) {
+           await api.logs.logError(log);
         }
+        localStorage.removeItem('fallback_error_logs');
       }
     } catch (error) {
       console.error('Erro ao sincronizar logs do fallback:', error);

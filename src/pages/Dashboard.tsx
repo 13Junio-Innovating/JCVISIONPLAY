@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/services/api";
 import Layout from "@/components/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Image, PlaySquare, Tv2, Activity } from "lucide-react";
@@ -17,25 +17,34 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = await api.auth.getUser();
         if (!user) return;
 
-        const [screensData, playlistsData, mediaData] = await Promise.all([
-          supabase.from("screens").select("*", { count: "exact" }).eq("created_by", user.id),
-          supabase.from("playlists").select("*", { count: "exact" }).eq("created_by", user.id),
-          supabase.from("media").select("*", { count: "exact" }).eq("uploaded_by", user.id),
+        const [screensResponse, playlistsResponse, mediaResponse] = await Promise.all([
+          api.screens.list(),
+          api.playlists.list(),
+          api.media.list(),
         ]);
+
+        const screensData = screensResponse.data || [];
+        const playlistsData = playlistsResponse.data || [];
+        const mediaData = mediaResponse.data || [];
+
+        // Filter by user
+        const userScreens = screensData.filter((s: any) => s.created_by === user.id);
+        const userPlaylists = playlistsData.filter((p: any) => p.created_by === user.id);
+        const userMedia = mediaData.filter((m: any) => m.uploaded_by === user.id);
 
         // Count active screens (online in last 5 minutes)
         const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-        const activeScreens = screensData.data?.filter(
-          (screen) => screen.last_seen && screen.last_seen > fiveMinutesAgo
-        ).length || 0;
+        const activeScreens = userScreens.filter(
+          (screen: any) => screen.last_seen && screen.last_seen > fiveMinutesAgo
+        ).length;
 
         setStats({
-          screens: screensData.count || 0,
-          playlists: playlistsData.count || 0,
-          media: mediaData.count || 0,
+          screens: userScreens.length,
+          playlists: userPlaylists.length,
+          media: userMedia.length,
           activeScreens,
         });
       } catch (error) {

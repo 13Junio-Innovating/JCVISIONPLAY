@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Play, Pause } from "lucide-react";
 import { toast } from "sonner";
@@ -52,22 +52,20 @@ const Preview = () => {
 
   const fetchPlaylist = async () => {
     try {
-      const { data: playlistData, error: playlistError } = await supabase
-        .from("playlists")
-        .select("*")
-        .eq("id", id)
-        .single();
+      if (!id) throw new Error("ID não fornecido");
+
+      const { data: playlistData, error: playlistError } = await api.playlists.get(id);
 
       if (playlistError) throw playlistError;
 
-      const items = playlistData.items as unknown as PlaylistItem[];
-      const mediaIds = items.map((item) => item.mediaId);
-      const { data: mediaData, error: mediaError } = await supabase
-        .from("media")
-        .select("*")
-        .in("id", mediaIds);
-
+      const items = playlistData.items || [];
+      const mediaIds = items.map((item: any) => item.mediaId);
+      
+      const { data: allMedia, error: mediaError } = await api.media.list();
+      
       if (mediaError) throw mediaError;
+
+      const mediaData = (allMedia || []).filter((m: any) => mediaIds.includes(m.id));
 
       setPlaylist({ ...playlistData, items });
       setMediaFiles(mediaData || []);

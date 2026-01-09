@@ -1,6 +1,6 @@
 # JC VISION PLAY
 
-Sistema completo de sinalização digital para hotéis e estabelecimentos comerciais, desenvolvido com React, TypeScript e Supabase.
+Sistema completo de sinalização digital para hotéis e estabelecimentos comerciais, desenvolvido com React, TypeScript e MySQL.
 
 ## 🚀 Funcionalidades
 
@@ -29,13 +29,13 @@ Sistema completo de sinalização digital para hotéis e estabelecimentos comerc
 ### 👥 Autenticação
 - Sistema completo de login/registro
 - Recuperação de senha
-- Gestão de usuários via Supabase
+- Gestão de usuários
 
 ## 🛠️ Tecnologias Utilizadas
 
 - **Frontend**: React 18 + TypeScript + Vite
 - **Styling**: Tailwind CSS + shadcn/ui
-- **Backend**: Supabase (PostgreSQL + Auth + Storage)
+- **Backend**: Node.js + Express + MySQL
 - **Notificações**: React Hot Toast
 - **Ícones**: Lucide React
 
@@ -43,7 +43,7 @@ Sistema completo de sinalização digital para hotéis e estabelecimentos comerc
 
 ### Pré-requisitos
 - Node.js 18+ e npm
-- Conta no Supabase
+- Servidor MySQL
 
 ### Passos de Instalação
 
@@ -57,14 +57,13 @@ cd display-forge-36
 # 3. Instale as dependências
 npm install
 
-# 4. Configure as variáveis de ambiente
-cp .env.example .env.local
-# Edite o arquivo .env.local com suas credenciais do Supabase
+# 4. Configure o banco de dados
+# Configure DB_HOST, DB_USER, DB_PASSWORD e DB_NAME no arquivo .env.local
 
-# 5. Execute as migrações do banco
-npx supabase db push
+# 5. Inicie o servidor backend
+node server/index.cjs
 
-# 6. Inicie o servidor de desenvolvimento
+# 6. Em outro terminal, inicie o frontend
 npm run dev
 ```
 

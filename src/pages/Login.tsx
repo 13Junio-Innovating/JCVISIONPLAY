@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,7 +24,7 @@ const Login = () => {
 
   useEffect(() => {
     const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = api.auth.getSession();
       if (session) {
         navigate("/dashboard");
       }
@@ -37,12 +37,7 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) throw error;
+      await api.auth.login(email, password);
 
       // Log da atividade de login bem-sucedido
       await loggingService.logUserActivity(
@@ -74,18 +69,9 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName,
-          },
-          emailRedirectTo: `${window.location.origin}/dashboard`,
-        },
-      });
-
-      if (error) throw error;
+      await api.auth.signUp(email, password, fullName);
+      // Auto login after signup
+      await api.auth.login(email, password);
 
       // Log da atividade de cadastro bem-sucedido
       await loggingService.logUserActivity(
@@ -157,8 +143,8 @@ const Login = () => {
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background to-secondary">
       <Card className="w-full max-w-md border-border/50 bg-card/50 backdrop-blur-xl shadow-2xl">
         <CardHeader className="text-center space-y-4">
-          <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-glow">
-            <Monitor className="w-8 h-8 text-white" />
+          <div className="mx-auto w-32 h-32 flex items-center justify-center mb-2">
+            <img src="/logo.png" alt="Logo Costão" className="w-full h-full object-contain" />
           </div>
           <CardTitle className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             JC VISION PLAY
@@ -169,9 +155,8 @@ const Login = () => {
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-3 mb-4">
+            <TabsList className="grid w-full grid-cols-2 mb-4">
               <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="signup">Cadastro</TabsTrigger>
               <TabsTrigger value="ldap" className="flex gap-2">
                 <Building2 className="w-4 h-4" />
                 Corp
@@ -211,66 +196,9 @@ const Login = () => {
                 >
                   {loading ? "Entrando..." : "Entrar"}
                 </Button>
-                <Button
-                  type="button"
-                  variant="link"
-                  className="w-full text-sm text-muted-foreground hover:text-primary"
-                  onClick={() => navigate("/forgot-password")}
-                >
-                  Esqueci minha senha
-                </Button>
               </form>
             </TabsContent>
             
-            <TabsContent value="signup">
-              <form onSubmit={handleSignup} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signup-name">Nome completo</Label>
-                  <Input
-                    id="signup-name"
-                    type="text"
-                    placeholder="Seu nome"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    required
-                    className="bg-secondary/50 border-border"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    placeholder="seu@email.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                    className="bg-secondary/50 border-border"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">Senha</Label>
-                  <Input
-                    id="signup-password"
-                    type="password"
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    minLength={6}
-                    className="bg-secondary/50 border-border"
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  className="w-full bg-gradient-to-r from-primary to-accent hover:opacity-90 transition-opacity"
-                  disabled={loading}
-                >
-                  {loading ? "Criando conta..." : "Criar conta"}
-                </Button>
-              </form>
-            </TabsContent>
-
             <TabsContent value="ldap">
               <form onSubmit={handleLdapLogin} className="space-y-4">
                 <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 text-sm text-blue-200 mb-4">

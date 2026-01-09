@@ -1,11 +1,15 @@
 import { ReactNode, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Monitor, LayoutDashboard, Image, PlaySquare, Tv2, LogOut, Menu, CreditCard, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import type { User } from "@supabase/supabase-js";
+
+interface User {
+  id: string;
+  email: string;
+}
 
 interface LayoutProps {
   children: ReactNode;
@@ -18,7 +22,7 @@ const Layout = ({ children }: LayoutProps) => {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const session = api.auth.getSession();
       if (!session) {
         navigate("/login");
       } else {
@@ -27,19 +31,13 @@ const Layout = ({ children }: LayoutProps) => {
     };
     checkAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_OUT") {
-        navigate("/login");
-      } else if (session) {
-        setUser(session.user);
-      }
-    });
-
-    return () => subscription.unsubscribe();
+    // Since we don't have a real-time auth listener with the custom API yet, 
+    // we rely on checkAuth on mount. 
+    // If we needed real-time, we'd add an event emitter to api.ts.
   }, [navigate]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await api.auth.signOut();
     toast.success("Logout realizado com sucesso");
     navigate("/login");
   };
@@ -103,8 +101,8 @@ const Layout = ({ children }: LayoutProps) => {
             </Sheet>
             
             <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-glow">
-                <Monitor className="w-5 h-5 text-white" />
+              <div className="w-10 h-10 flex items-center justify-center">
+                <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
               </div>
               <span className="font-bold text-xl bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
                 JC VISION PLAY

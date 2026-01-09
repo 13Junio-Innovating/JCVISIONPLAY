@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import type { Json } from "@/integrations/supabase/types";
+import { api } from "@/services/api";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -47,31 +46,27 @@ const Playlists = () => {
 
   const fetchData = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const session = api.auth.getSession();
+      if (!session) return;
 
       const [playlistsData, mediaData] = await Promise.all([
-        supabase
-          .from("playlists")
-          .select("*")
-          .eq("created_by", user.id)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("media")
-          .select("*")
-          .eq("uploaded_by", user.id)
-          .order("created_at", { ascending: false }),
+        api.playlists.list(),
+        api.media.list()
       ]);
 
       if (playlistsData.error) throw playlistsData.error;
       if (mediaData.error) throw mediaData.error;
 
-      const playlists = (playlistsData.data || []).map(p => ({
+      // Filter by user
+      const userPlaylists = (playlistsData.data || []).filter((p: any) => p.created_by === session.user.id);
+      const userMedia = (mediaData.data || []).filter((m: any) => m.uploaded_by === session.user.id);
+
+      const playlists = userPlaylists.map((p: any) => ({
         ...p,
-        items: p.items as unknown as PlaylistItem[]
+        items: p.items || []
       }));
       setPlaylists(playlists);
-      setMediaFiles(mediaData.data || []);
+      setMediaFiles(userMedia);
     } catch (error) {
       console.error("Error fetching data:", error);
       toast.error("Erro ao carregar dados");
@@ -109,14 +104,14 @@ const Playlists = () => {
     }
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
+      const session = api.auth.getSession();
+      if (!session) throw new Error("Usuário não autenticado");
 
-      const { data, error } = await supabase.from("playlists").insert({
+      const { data, error } = await api.playlists.create({
         name: playlistName,
-        items: JSON.parse(JSON.stringify(selectedMedia)) as Json,
-        created_by: user.id,
-      }).select().single();
+        items: selectedMedia,
+        created_by: session.user.id,
+      });
 
       if (error) throw error;
 
@@ -160,13 +155,9 @@ const Playlists = () => {
 
     try {
       // Buscar informações da playlist antes de excluir para o log
-      const { data: playlistData } = await supabase
-        .from("playlists")
-        .select("name, items")
-        .eq("id", id)
-        .single();
+      const playlistData = playlists.find(p => p.id === id);
 
-      await supabase.from("playlists").delete().eq("id", id);
+      await api.playlists.delete(id);
 
       // Log da atividade de exclusão de playlist
       await loggingService.logUserActivity(
@@ -216,7 +207,7 @@ const Playlists = () => {
     ];
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await api.auth.getUser();
       if (!user) throw new Error("Usuário não autenticado");
 
       // Primeiro, criar as mídias de exemplo
@@ -229,7 +220,7 @@ const Playlists = () => {
           uploaded_by: user.id
         },
         {
-          name: "Informações Operacionais",
+          name: "Informações Operacionais", 
           url: "/sample-images/informacoes-operacionais.svg", 
           type: "image",
           duration: 15,
@@ -259,31 +250,38 @@ const Playlists = () => {
       ];
 
       // Inserir as mídias
-      const { data: mediaData, error: mediaError } = await supabase
-        .from("media")
-        .insert(sampleMedias)
-        .select();
-
-      if (mediaError) throw mediaError;
+      const mediaIds: string[] = [];
+      
+      for (const media of sampleMedias) {
+          const formData = new FormData();
+          formData.append('name', media.name);
+          formData.append('url', media.url);
+          formData.append('type', media.type);
+          formData.append('duration', media.duration.toString());
+          formData.append('uploaded_by', user.id);
+          
+          const { data, error } = await api.media.upload(formData);
+          if (error) throw error;
+          if (data) mediaIds.push(data.id);
+      }
 
       // Criar as playlists com as mídias
-      const playlistsData = playlistsToCreate.map((playlist, index) => {
-        const mediaId = mediaData[index]?.id;
+      for (let i = 0; i < playlistsToCreate.length; i++) {
+        const playlist = playlistsToCreate[i];
+        const mediaId = mediaIds[i];
         const items = mediaId ? [{
           mediaId: mediaId,
-          duration: sampleMedias[index].duration
+          duration: sampleMedias[i].duration
         }] : [];
 
-        return {
+        const { error } = await api.playlists.create({
           name: playlist.name,
-          items: JSON.parse(JSON.stringify(items)) as Json,
+          items: items,
           created_by: user.id,
-        };
-      });
+        });
 
-      const { error } = await supabase.from("playlists").insert(playlistsData);
-
-      if (error) throw error;
+        if (error) throw error;
+      }
 
       toast.success(`${playlistsToCreate.length} playlists criadas com mídias de exemplo!`);
       fetchData();
@@ -301,26 +299,24 @@ const Playlists = () => {
 
   const handleAutoUpdatePlaylists = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
+      const session = api.auth.getSession();
+      if (!session?.user) throw new Error("Usuário não autenticado");
   
       // Buscar todas as mídias do usuário
-      const { data: allMedia, error: mediaError } = await supabase
-        .from("media")
-        .select("*")
-        .eq("uploaded_by", user.id);
+      const { data: allMedia, error: mediaError } = await api.media.list();
   
       if (mediaError) throw mediaError;
+
+      const userMedia = (allMedia || []).filter((m: any) => m.uploaded_by === session.user.id);
   
       // Buscar todas as playlists existentes
-      const { data: existingPlaylists, error: playlistError } = await supabase
-        .from("playlists")
-        .select("*")
-        .eq("created_by", user.id);
+      const { data: existingPlaylists, error: playlistError } = await api.playlists.list();
   
       if (playlistError) throw playlistError;
+
+      const userPlaylists = (existingPlaylists || []).filter((p: any) => p.created_by === session.user.id);
   
-      if (!allMedia || allMedia.length === 0) {
+      if (!userMedia || userMedia.length === 0) {
         toast.error("Nenhuma mídia encontrada para adicionar às playlists");
         return;
       }
@@ -372,8 +368,8 @@ const Playlists = () => {
       let updatedCount = 0;
   
       // Atualizar cada playlist com mídias relevantes
-      for (const playlist of existingPlaylists) {
-        const relevantMedia = allMedia.filter(media => 
+      for (const playlist of userPlaylists) {
+        const relevantMedia = userMedia.filter((media: any) => 
           categorizeMidiaForPlaylist(media, playlist.name)
         );
   
@@ -385,8 +381,8 @@ const Playlists = () => {
   
         // Adicionar novas mídias que não estão na playlist
         const newItems = relevantMedia
-          .filter(media => !currentMediaIds.includes(media.id))
-          .map(media => ({
+          .filter((media: any) => !currentMediaIds.includes(media.id))
+          .map((media: any) => ({
             mediaId: media.id,
             duration: media.duration || 10
           }));
@@ -394,32 +390,23 @@ const Playlists = () => {
         if (newItems.length > 0) {
           const updatedItems = [...currentItems, ...newItems];
   
-          const { error: updateError } = await supabase
-            .from("playlists")
-            .update({ items: JSON.parse(JSON.stringify(updatedItems)) })
-            .eq("id", playlist.id);
-  
-          if (updateError) throw updateError;
+          await api.playlists.update(playlist.id, { items: updatedItems });
           updatedCount++;
         }
       }
   
       // Se não há playlists, adicionar todas as mídias a uma playlist geral
-      if (existingPlaylists.length === 0) {
-        const allMediaItems = allMedia.map(media => ({
+      if (userPlaylists.length === 0) {
+        const allMediaItems = userMedia.map((media: any) => ({
           mediaId: media.id,
           duration: media.duration || 10
         }));
   
-        const { error: createError } = await supabase
-          .from("playlists")
-          .insert({
+        await api.playlists.create({
             name: "Todas as Mídias",
-            items: JSON.parse(JSON.stringify(allMediaItems)),
-            created_by: user.id
-          });
-  
-        if (createError) throw createError;
+            items: allMediaItems,
+            created_by: session.user.id
+        });
         updatedCount = 1;
       }
   

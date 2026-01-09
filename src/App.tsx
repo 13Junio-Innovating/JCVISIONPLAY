@@ -25,7 +25,9 @@ if (BILLING_ENABLED) {
 
 const queryClient = new QueryClient();
 
-const App = () => (
+const App = () => {
+  console.log("JVision: App Component Rendering...");
+  return (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
@@ -60,6 +62,7 @@ const App = () => (
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
-);
+  );
+};
 
 export default App;

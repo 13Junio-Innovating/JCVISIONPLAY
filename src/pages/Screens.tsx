@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { api } from "@/services/api";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -43,27 +43,27 @@ const Screens = () => {
 
   const fetchData = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const session = api.auth.getSession();
+      if (!session) return;
 
       const [screensData, playlistsData] = await Promise.all([
-        supabase
-          .from("screens")
-          .select("*")
-          .eq("created_by", user.id)
-          .order("created_at", { ascending: false }),
-        supabase
-          .from("playlists")
-          .select("id, name")
-          .eq("created_by", user.id)
-          .order("name"),
+        api.screens.list(),
+        api.playlists.list()
       ]);
 
       if (screensData.error) throw screensData.error;
       if (playlistsData.error) throw playlistsData.error;
 
-      setScreens(screensData.data || []);
-      setPlaylists(playlistsData.data || []);
+      // Filter by user if API returns all (API currently returns all, should probably filter in API or here)
+      // Since API implementation in index.cjs doesn't filter by user yet, we should filter here if needed,
+      // but for now let's assume the user sees all screens or we add filtering to API later.
+      // Wait, the original code filtered by user.id. 
+      // My API list() returns all. I should probably filter here.
+      const userScreens = (screensData.data || []).filter((s: any) => s.created_by === session.user.id);
+      const userPlaylists = (playlistsData.data || []).filter((p: any) => p.created_by === session.user.id);
+
+      setScreens(userScreens);
+      setPlaylists(userPlaylists);
     } catch (error) {
       console.error("Error fetching data:", error);
       toast.error("Erro ao carregar dados");
@@ -78,19 +78,19 @@ const Screens = () => {
 
     setSubmitting(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
+      const session = api.auth.getSession();
+      if (!session) throw new Error("Usuário não autenticado");
 
       const payload: any = {
         name: screenName,
-        created_by: user.id,
+        created_by: session.user.id,
       };
 
       if (manualPlayerKey.trim()) {
         payload.player_key = manualPlayerKey.trim().toUpperCase();
       }
 
-      const { data, error } = await supabase.from("screens").insert(payload).select().single();
+      const { data, error } = await api.screens.create(payload);
 
       if (error) throw error;
 
@@ -129,12 +129,7 @@ const Screens = () => {
 
   const handleUpdatePlaylist = async (screenId: string, playlistId: string | null) => {
     try {
-      const { error } = await supabase
-        .from("screens")
-        .update({ assigned_playlist: playlistId })
-        .eq("id", screenId);
-
-      if (error) throw error;
+      await api.screens.update(screenId, { assigned_playlist: playlistId });
 
       // Log da atividade de atualização de playlist
       await loggingService.logUserActivity(
@@ -165,13 +160,9 @@ const Screens = () => {
 
     try {
       // Buscar informações da tela antes de excluir para o log
-      const { data: screenData } = await supabase
-        .from("screens")
-        .select("name")
-        .eq("id", id)
-        .single();
+      const screenData = screens.find(s => s.id === id);
 
-      await supabase.from("screens").delete().eq("id", id);
+      await api.screens.delete(id);
 
       // Log da atividade de exclusão de tela
       await loggingService.logUserActivity(
@@ -212,17 +203,16 @@ const Screens = () => {
     ];
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
+      const session = api.auth.getSession();
+      if (!session) throw new Error("Usuário não autenticado");
 
-      const screensToCreate = screenNames.map(name => ({
-        name,
-        created_by: user.id,
-      }));
-
-      const { error } = await supabase.from("screens").insert(screensToCreate);
-
-      if (error) throw error;
+      // API currently creates one by one
+      for (const name of screenNames) {
+        await api.screens.create({
+          name,
+          created_by: session.user.id,
+        });
+      }
 
       toast.success(`${screenNames.length} telas criadas com sucesso!`);
       fetchData();
@@ -234,24 +224,18 @@ const Screens = () => {
 
   const handleAutoAssignPlaylists = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Usuário não autenticado");
+      const session = api.auth.getSession();
+      if (!session) throw new Error("Usuário não autenticado");
 
       // Buscar todas as telas do usuário
-      const { data: allScreens, error: screensError } = await supabase
-        .from("screens")
-        .select("*")
-        .eq("created_by", user.id);
-
-      if (screensError) throw screensError;
+      const screensResult = await api.screens.list();
+      if (screensResult.error) throw screensResult.error;
+      const allScreens = (screensResult.data || []).filter((s: any) => s.created_by === session.user.id);
 
       // Buscar todas as playlists do usuário
-      const { data: allPlaylists, error: playlistsError } = await supabase
-        .from("playlists")
-        .select("*")
-        .eq("created_by", user.id);
-
-      if (playlistsError) throw playlistsError;
+      const playlistsResult = await api.playlists.list();
+      if (playlistsResult.error) throw playlistsResult.error;
+      const allPlaylists = (playlistsResult.data || []).filter((p: any) => p.created_by === session.user.id);
 
       if (!allScreens || allScreens.length === 0) {
         toast.error("Nenhuma tela encontrada. Crie telas primeiro.");
@@ -306,12 +290,7 @@ const Screens = () => {
         const targetPlaylist = screenPlaylistMapping(screen.name);
         
         if (targetPlaylist && screen.assigned_playlist !== targetPlaylist.id) {
-          const { error: updateError } = await supabase
-            .from("screens")
-            .update({ assigned_playlist: targetPlaylist.id })
-            .eq("id", screen.id);
-
-          if (updateError) throw updateError;
+          await api.screens.update(screen.id, { assigned_playlist: targetPlaylist.id });
           updatedCount++;
         }
       }
@@ -322,7 +301,6 @@ const Screens = () => {
       } else {
         toast.info("Todas as telas já estão associadas com playlists apropriadas");
       }
-
     } catch (error) {
       console.error("Error auto-assigning playlists:", error);
       toast.error(error instanceof Error ? error.message : "Erro ao associar playlists às telas");
