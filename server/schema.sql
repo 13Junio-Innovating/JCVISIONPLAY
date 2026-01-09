@@ -4,20 +4,9 @@
 
 USE jvisiondb;
 
--- 1. Limpeza
-SET FOREIGN_KEY_CHECKS = 0;
-DROP TABLE IF EXISTS error_logs;
-DROP TABLE IF EXISTS user_activity_logs;
-DROP TABLE IF EXISTS screens;
-DROP TABLE IF EXISTS playlists;
-DROP TABLE IF EXISTS media;
-DROP TABLE IF EXISTS app_users;
-DROP TABLE IF EXISTS teste_simples;
-SET FOREIGN_KEY_CHECKS = 1;
-
 -- 2. Criação das Tabelas (Usando LONGTEXT no lugar de JSON)
 
-CREATE TABLE app_users (
+CREATE TABLE IF NOT EXISTS app_users (
     id VARCHAR(36) NOT NULL,
     email VARCHAR(255) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
@@ -28,7 +17,7 @@ CREATE TABLE app_users (
     UNIQUE KEY (email)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-CREATE TABLE media (
+CREATE TABLE IF NOT EXISTS media (
     id VARCHAR(36) NOT NULL,
     name VARCHAR(255) NOT NULL,
     url TEXT NOT NULL,
@@ -37,20 +26,22 @@ CREATE TABLE media (
     rotation INT DEFAULT 0,
     uploaded_by VARCHAR(36),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    CONSTRAINT fk_media_user FOREIGN KEY (uploaded_by) REFERENCES app_users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-CREATE TABLE playlists (
+CREATE TABLE IF NOT EXISTS playlists (
     id VARCHAR(36) NOT NULL,
     name VARCHAR(255) NOT NULL,
     items LONGTEXT, -- Mudado de JSON para LONGTEXT para compatibilidade
     created_by VARCHAR(36),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    CONSTRAINT fk_playlists_user FOREIGN KEY (created_by) REFERENCES app_users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-CREATE TABLE screens (
+CREATE TABLE IF NOT EXISTS screens (
     id VARCHAR(36) NOT NULL,
     name VARCHAR(255) NOT NULL,
     player_key VARCHAR(255) NOT NULL,
@@ -59,10 +50,12 @@ CREATE TABLE screens (
     last_seen TIMESTAMP NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    UNIQUE KEY (player_key)
+    UNIQUE KEY (player_key),
+    CONSTRAINT fk_screens_playlist FOREIGN KEY (assigned_playlist) REFERENCES playlists(id) ON DELETE SET NULL,
+    CONSTRAINT fk_screens_user FOREIGN KEY (created_by) REFERENCES app_users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-CREATE TABLE user_activity_logs (
+CREATE TABLE IF NOT EXISTS user_activity_logs (
     id INT AUTO_INCREMENT,
     user_id VARCHAR(36),
     action VARCHAR(255) NOT NULL,
@@ -72,10 +65,11 @@ CREATE TABLE user_activity_logs (
     ip_address VARCHAR(45),
     user_agent TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    CONSTRAINT fk_activity_user FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-CREATE TABLE error_logs (
+CREATE TABLE IF NOT EXISTS error_logs (
     id INT AUTO_INCREMENT,
     user_id VARCHAR(36),
     error_type VARCHAR(255) NOT NULL,
@@ -88,31 +82,15 @@ CREATE TABLE error_logs (
     severity VARCHAR(50) DEFAULT 'medium',
     resolved BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id)
+    PRIMARY KEY (id),
+    CONSTRAINT fk_error_user FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 -- 3. Criar Ligações (Foreign Keys)
-
-ALTER TABLE media 
-ADD CONSTRAINT fk_media_user FOREIGN KEY (uploaded_by) REFERENCES app_users(id) ON DELETE SET NULL;
-
-ALTER TABLE playlists 
-ADD CONSTRAINT fk_playlists_user FOREIGN KEY (created_by) REFERENCES app_users(id) ON DELETE SET NULL;
-
-ALTER TABLE screens 
-ADD CONSTRAINT fk_screens_playlist FOREIGN KEY (assigned_playlist) REFERENCES playlists(id) ON DELETE SET NULL;
-
-ALTER TABLE screens 
-ADD CONSTRAINT fk_screens_user FOREIGN KEY (created_by) REFERENCES app_users(id) ON DELETE SET NULL;
-
-ALTER TABLE user_activity_logs 
-ADD CONSTRAINT fk_activity_user FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE SET NULL;
-
-ALTER TABLE error_logs 
-ADD CONSTRAINT fk_error_user FOREIGN KEY (user_id) REFERENCES app_users(id) ON DELETE SET NULL;
+-- As FKs agora são definidas dentro das tabelas para evitar erros de duplicação em execuções repetidas.
 
 -- 4. Inserir Usuário Admin (Teste Final)
-INSERT INTO app_users (id, email, password_hash, full_name) 
+INSERT IGNORE INTO app_users (id, email, password_hash, full_name) 
 VALUES ('admin-id', 'admin@jvision.com.br', '$2b$10$TesteHash', 'Admin JVision');
 
 -- 5. Listar tabelas para confirmar

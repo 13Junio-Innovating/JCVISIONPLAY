@@ -130,7 +130,7 @@ const Dashboard = () => {
 
         <Card className="border-border/50 bg-gradient-to-br from-card/50 to-card/30 backdrop-blur-xl">
           <CardHeader>
-            <CardTitle>Bem-vindo ao JC VISION PLAY</CardTitle>
+            <CardTitle>Bem-vindo ao COSTAO VISION PLAY</CardTitle>
             <CardDescription>
               Gerencie facilmente suas telas, mídias e playlists
             </CardDescription>

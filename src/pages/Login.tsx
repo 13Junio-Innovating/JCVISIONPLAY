@@ -147,7 +147,7 @@ const Login = () => {
             <img src="/logo.png" alt="Logo Costão" className="w-full h-full object-contain" />
           </div>
           <CardTitle className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            JC VISION PLAY
+            COSTAO VISION PLAY
           </CardTitle>
           <CardDescription className="text-muted-foreground">
             Gerencie seus painéis digitais de forma simples

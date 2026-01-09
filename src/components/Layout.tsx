@@ -105,7 +105,7 @@ const Layout = ({ children }: LayoutProps) => {
                 <img src="/logo.png" alt="Logo" className="w-full h-full object-contain" />
               </div>
               <span className="font-bold text-xl bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-                JC VISION PLAY
+                COSTAO VISION PLAY
               </span>
             </div>
           </div>

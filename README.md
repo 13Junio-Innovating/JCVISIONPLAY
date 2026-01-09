@@ -1,4 +1,4 @@
-# JC VISION PLAY
+# COSTAOVISION PLAY
 
 Sistema completo de sinalização digital para hotéis e estabelecimentos comerciais, desenvolvido com React, TypeScript e MySQL.
 

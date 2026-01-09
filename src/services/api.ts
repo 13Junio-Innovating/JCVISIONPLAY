@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.PROD ? '' : 'http://localhost:3001';
+export const API_URL = import.meta.env.PROD ? '' : 'http://localhost:3001';
 console.log(`JVision: API Service Initialized. Mode=${import.meta.env.MODE}, API_URL='${API_URL}'`);
 
 export const api = {

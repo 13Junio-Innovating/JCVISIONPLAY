@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { api } from "@/services/api";
+import { api, API_URL } from "@/services/api";
 import { MediaCache } from "@/utils/mediaCache";
 import { loggingService } from "@/services/loggingService";
 import { WifiOff, Monitor } from "lucide-react";
@@ -128,7 +128,7 @@ const Player = () => {
 
   const checkConnection = async () => {
     try {
-      const response = await fetch('/favicon.ico', { 
+      const response = await fetch('/logo.png', { 
         method: 'HEAD',
         cache: 'no-cache'
       });
@@ -178,7 +178,7 @@ const Player = () => {
       }
 
       if (currentScreenId) {
-        await api.screens.update(currentScreenId, { last_seen: new Date().toISOString() });
+        await api.screens.update(currentScreenId, { last_seen: new Date().toISOString().slice(0, 19).replace('T', ' ') });
       }
     } catch (error) {
       console.error("Error updating last_seen:", error);
@@ -233,7 +233,37 @@ const Player = () => {
       const mediaData = (allMedia || []).filter((m: any) => mediaIds.includes(m.id));
 
       const newPlaylist = { ...playlistData, items };
-      const newMediaFiles = mediaData || [];
+
+      // Corrigir URLs de mídia local para incluir o domínio da API em desenvolvimento
+      // E tratar caracteres especiais (acentos, espaços)
+      const newMediaFiles = (mediaData || []).map((m: any) => {
+        if (m.url && m.url.startsWith('/uploads/')) {
+          let url = m.url;
+          
+          // Se estiver em desenvolvimento e a URL não for absoluta, adicionar domínio
+          if (API_URL && !url.startsWith('http')) {
+            url = `${API_URL}${url}`;
+          }
+
+          // Codificar a parte do arquivo para garantir que caracteres especiais funcionem
+          // Mas manter a estrutura da URL (/uploads/...)
+          try {
+            const urlParts = url.split('/uploads/');
+            if (urlParts.length > 1) {
+              const baseUrl = urlParts[0];
+              const fileName = urlParts[1];
+              // Decodificar primeiro para evitar dupla codificação, depois codificar
+              const encodedFileName = encodeURIComponent(decodeURIComponent(fileName));
+              url = `${baseUrl}/uploads/${encodedFileName}`;
+            }
+          } catch (e) {
+            console.warn('Erro ao processar URL de mídia:', m.url, e);
+          }
+          
+          return { ...m, url };
+        }
+        return m;
+      });
 
       setPlaylist(newPlaylist);
       setMediaFiles(newMediaFiles);
@@ -343,6 +373,18 @@ const Player = () => {
   };
 
   const currentMedia = getCurrentMedia();
+
+  // Debug logs
+  useEffect(() => {
+    console.log("Player State:", JSON.stringify({
+      playlistItems: playlist?.items?.length,
+      currentMedia,
+      isOffline,
+      error,
+      currentIndex,
+      mediaFilesUrl: mediaFiles.map(m => m.url)
+    }, null, 2));
+  }, [playlist, currentMedia, isOffline, error, currentIndex, mediaFiles]);
 
   const handleManualCodeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
