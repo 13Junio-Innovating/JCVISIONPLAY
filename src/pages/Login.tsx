@@ -106,10 +106,7 @@ const Login = () => {
       const result = await ldapService.authenticate(ldapUser, ldapPassword);
 
       if (result.status && result.mail) {
-        // Se autenticado no LDAP, tentamos logar ou criar usuário no Supabase
-        // Estratégia: Tentar login com senha padrão ou criar usuário via Edge Function (ideal)
-        // Por enquanto, vamos simular o sucesso e redirecionar, mas o ideal seria
-        // integrar com o Supabase Auth via Custom Token.
+        // Se autenticado no LDAP, prosseguimos para o dashboard
         
         // Log da atividade
         await loggingService.logUserActivity(
@@ -120,7 +117,7 @@ const Login = () => {
         );
 
         toast.success(`Bem-vindo, ${result.name}!`);
-        // Armazenar dados do usuário LDAP temporariamente (não persistente como Supabase Session)
+        // Armazenar dados do usuário LDAP temporariamente
         localStorage.setItem('ldap_user', JSON.stringify(result));
         navigate("/dashboard");
       } else {
